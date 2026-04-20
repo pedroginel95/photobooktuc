@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { auth } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
-import { LogOut, ArrowLeft } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import Link from 'next/link';
 import styles from '../dashboard/layout.module.css'; // Reusing dashboard styles
 

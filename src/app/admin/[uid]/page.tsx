@@ -160,7 +160,7 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
         {photos.length === 0 ? (
           <div className={styles.emptyGallery}>
             <ImageIcon size={48} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
-            <p>This client hasn't uploaded any photos yet.</p>
+            <p>This client hasn&apos;t uploaded any photos yet.</p>
           </div>
         ) : (
           <div className={styles.grid}>

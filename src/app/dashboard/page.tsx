@@ -17,7 +17,7 @@ interface PhotoData {
   id: string;
   url: string;
   filename: string;
-  createdAt: any;
+  createdAt: unknown;
 }
 
 export default function DashboardPage() {

@@ -42,9 +42,9 @@ export default function AuthForm() {
         
         router.push('/dashboard');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || 'An error occurred during authentication.');
+      setError((err as Error).message || 'An error occurred during authentication.');
     } finally {
       setLoading(false);
     }
