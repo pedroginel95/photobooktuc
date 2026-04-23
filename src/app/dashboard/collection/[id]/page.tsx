@@ -29,7 +29,7 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploads, setUploads] = useState<UploadProgress[]>([]);
   const [photos, setPhotos] = useState<PhotoData[]>([]);
-  const [collectionName, setCollectionName] = useState<string>('Loading...');
+  const [collectionName, setCollectionName] = useState<string>('Cargando...');
 
   useEffect(() => {
     if (!user || !collectionId) return;
@@ -39,9 +39,9 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
       const docRef = doc(db, `users/${user.uid}/collections`, collectionId);
       const snap = await getDoc(docRef);
       if (snap.exists()) {
-        setCollectionName(snap.data().name || 'Unnamed Collection');
+        setCollectionName(snap.data().name || 'Colección Sin Nombre');
       } else {
-        setCollectionName('Collection Not Found');
+        setCollectionName('Colección No Encontrada');
       }
     };
     fetchCollection();
@@ -121,17 +121,17 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
       <div className={styles.dashboardHeader}>
         <div>
           <Link href="/dashboard" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', marginBottom: '1rem', textDecoration: 'none' }}>
-            <ArrowLeft size={16} /> Back to Library
+            <ArrowLeft size={16} /> Volver a la Biblioteca
           </Link>
           <h2 className={styles.title}>{collectionName}</h2>
-          <p className={styles.subtitle}>Upload photos directly to this collection.</p>
+          <p className={styles.subtitle}>Sube fotos directamente a esta colección.</p>
         </div>
       </div>
 
       <div className={styles.uploaderCard} onClick={handleCardClick}>
         <UploadCloud size={48} className={styles.uploadIcon} />
-        <div className={styles.uploadText}>Tap to select photos from your device</div>
-        <div className={styles.uploadSubtext}>Upload original, high-quality files directly</div>
+        <div className={styles.uploadText}>Toca para seleccionar fotos de tu dispositivo</div>
+        <div className={styles.uploadSubtext}>Sube archivos originales de alta calidad directamente</div>
         <input 
           type="file" 
           multiple 
@@ -140,7 +140,7 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
           ref={fileInputRef}
           onChange={handleFileChange}
         />
-        <button className={styles.uploadBtn}>Browse Files</button>
+        <button className={styles.uploadBtn}>Buscar Archivos</button>
       </div>
 
       {uploads.length > 0 && (
@@ -163,12 +163,12 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
       )}
 
       <div className={styles.gallerySection}>
-        <h3 className={styles.galleryHeader}>Uploaded Photos ({photos.length})</h3>
+        <h3 className={styles.galleryHeader}>Fotos Subidas ({photos.length})</h3>
         
         {photos.length === 0 ? (
           <div className={styles.emptyGallery}>
             <ImageIcon size={48} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
-            <p>No photos uploaded yet to this collection.</p>
+            <p>Todavía no has subido fotos a esta colección.</p>
           </div>
         ) : (
           <div className={styles.grid}>

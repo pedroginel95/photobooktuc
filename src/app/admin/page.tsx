@@ -55,8 +55,8 @@ export default function AdminDirectory() {
   return (
     <div>
       <div style={{ marginBottom: '2rem' }}>
-        <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '0.5rem' }}>Client Directory</h2>
-        <p style={{ color: 'var(--text-muted)' }}>Manage your clients and access their uploaded photos.</p>
+        <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '0.5rem' }}>Directorio de Clientes</h2>
+        <p style={{ color: 'var(--text-muted)' }}>Gestiona tus clientes y accede a sus colecciones subidas.</p>
       </div>
 
       <div style={{ position: 'relative', maxWidth: '400px', marginBottom: '2rem' }}>
@@ -66,7 +66,7 @@ export default function AdminDirectory() {
         />
         <input
           type="text"
-          placeholder="Search by name, whatsapp, or email..."
+          placeholder="Buscar por nombre, whatsapp, o email..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           style={{
@@ -82,11 +82,11 @@ export default function AdminDirectory() {
       </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Loading clients...</div>
+        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Cargando clientes...</div>
       ) : filteredUsers.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'var(--surface)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
           <UserCheck size={48} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
-          <p>No clients found matching your search.</p>
+          <p>No se encontraron clientes que coincidan con la búsqueda.</p>
         </div>
       ) : (
         <div style={{
@@ -115,8 +115,8 @@ export default function AdminDirectory() {
                 {user.name} {user.lastName}
               </h3>
               <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <span><strong>Phone:</strong> {user.whatsapp}</span>
-                <span><strong>Email:</strong> {user.email}</span>
+                <span><strong>Teléfono:</strong> {user.whatsapp}</span>
+                <span><strong>Correo:</strong> {user.email}</span>
               </div>
             </Link>
           ))}

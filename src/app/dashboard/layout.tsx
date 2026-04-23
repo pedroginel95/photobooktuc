@@ -30,7 +30,7 @@ export default function DashboardLayout({
     return (
       <div className={styles.loadingContainer}>
         <div className={styles.spinner}></div>
-        <p>Loading your dashboard...</p>
+        <p>Cargando tu biblioteca...</p>
       </div>
     );
   }
@@ -47,11 +47,11 @@ export default function DashboardLayout({
           <h1 className={styles.logo}>PHOTOBOOKTUC</h1>
           <div className={styles.userSection}>
             <span className={styles.greeting}>
-              Hello, {profile?.name || user.email?.split('@')[0]}
+              Hola, {profile?.name || user.email?.split('@')[0]}
             </span>
             <button onClick={handleSignOut} className={styles.logoutBtn} aria-label="Sign out">
               <LogOut size={20} />
-              <span className={styles.logoutText}>Sign Out</span>
+              <span className={styles.logoutText}>Cerrar Sesión</span>
             </button>
           </div>
         </div>

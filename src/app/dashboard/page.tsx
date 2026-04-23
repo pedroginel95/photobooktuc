@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { collection, onSnapshot, query, orderBy, setDoc, doc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import styles from './page.module.css';
-import { FolderPlus, Folder } from 'lucide-react';
+import { FolderPlus, Folder, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -20,12 +20,12 @@ export default function DashboardLibraryPage() {
   const [collections, setCollections] = useState<CollectionData[]>([]);
   const [newCollectionName, setNewCollectionName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const router = useRouter();
 
   useEffect(() => {
     if (!user) return;
 
-    // Real-time listener for user's collections
     const q = query(
       collection(db, `users/${user.uid}/collections`),
       orderBy('createdAt', 'desc')
@@ -44,6 +44,7 @@ export default function DashboardLibraryPage() {
 
   const handleCreateCollection = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg('');
     if (!user || !newCollectionName.trim()) return;
 
     setIsCreating(true);
@@ -58,6 +59,8 @@ export default function DashboardLibraryPage() {
       router.push(`/dashboard/collection/${tempId}`);
     } catch (error) {
       console.error("Error creating collection:", error);
+      setErrorMsg("Error de permisos. Asegúrate de actualizar las Reglas de Firebase Security (ver consola).");
+      alert("Error al crear la colección.\n\nEs probable que Firebase Security Rules esté bloqueando la escritura. Si ves esto en producción, actualiza las reglas a 'match /users/{userId}/{document=**}' en tu Firebase Console.");
     } finally {
       setIsCreating(false);
     }
@@ -67,8 +70,8 @@ export default function DashboardLibraryPage() {
     <div>
       <div className={styles.dashboardHeader}>
         <div>
-          <h2 className={styles.title}>Your Library</h2>
-          <p className={styles.subtitle}>Create collections to organize your photos</p>
+          <h2 className={styles.title}>Tu Biblioteca</h2>
+          <p className={styles.subtitle}>Crea colecciones para organizar tus fotos</p>
         </div>
       </div>
 
@@ -79,11 +82,19 @@ export default function DashboardLibraryPage() {
         border: '1px solid var(--border)',
         marginBottom: '3rem'
       }}>
-        <h3 style={{ fontSize: '1.25rem', marginBottom: '1rem', fontWeight: 600 }}>Create New Collection</h3>
+        <h3 style={{ fontSize: '1.25rem', marginBottom: '1rem', fontWeight: 600 }}>Crear Nueva Colección</h3>
+        
+        {errorMsg && (
+          <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', padding: '1rem', borderRadius: 'var(--radius)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', border: '1px solid var(--danger)' }}>
+            <AlertTriangle size={20} />
+            {errorMsg}
+          </div>
+        )}
+
         <form onSubmit={handleCreateCollection} style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
           <input
             type="text"
-            placeholder="e.g. Wedding 2026, Birthday..."
+            placeholder="ej. Boda 2026, Cumpleaños..."
             value={newCollectionName}
             onChange={(e) => setNewCollectionName(e.target.value)}
             style={{
@@ -115,18 +126,18 @@ export default function DashboardLibraryPage() {
             }}
           >
             <FolderPlus size={20} />
-            {isCreating ? 'Creating...' : 'Create'}
+            {isCreating ? 'Creando...' : 'Crear'}
           </button>
         </form>
       </div>
 
       <div className={styles.gallerySection}>
-        <h3 className={styles.galleryHeader}>Your Collections ({collections.length})</h3>
+        <h3 className={styles.galleryHeader}>Tus Colecciones ({collections.length})</h3>
         
         {collections.length === 0 ? (
           <div className={styles.emptyGallery}>
             <Folder size={48} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
-            <p>You haven&apos;t created any collections yet.</p>
+            <p>Todavía no has creado ninguna colección.</p>
           </div>
         ) : (
           <div style={{
@@ -169,7 +180,7 @@ export default function DashboardLibraryPage() {
                       overflow: 'hidden',
                       textOverflow: 'ellipsis'
                     }}>{col.name}</h4>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Open collection</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Abrir colección</p>
                   </div>
                 </div>
               </Link>

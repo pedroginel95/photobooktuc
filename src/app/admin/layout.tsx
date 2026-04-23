@@ -31,7 +31,7 @@ export default function AdminLayout({
     return (
       <div className={styles.loadingContainer}>
         <div className={styles.spinner}></div>
-        <p>Verifying admin access...</p>
+        <p>Verificando acceso de administrador...</p>
       </div>
     );
   }
@@ -48,7 +48,7 @@ export default function AdminLayout({
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <h1 className={styles.logo}>Admin Panel</h1>
             <Link href="/admin" style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-              Directory
+              Directorio
             </Link>
           </div>
           <div className={styles.userSection}>
@@ -57,7 +57,7 @@ export default function AdminLayout({
             </span>
             <button onClick={handleSignOut} className={styles.logoutBtn} aria-label="Sign out">
               <LogOut size={20} />
-              <span className={styles.logoutText}>Sign Out</span>
+              <span className={styles.logoutText}>Cerrar Sesión</span>
             </button>
           </div>
         </div>

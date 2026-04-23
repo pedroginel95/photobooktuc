@@ -44,7 +44,7 @@ export default function AuthForm() {
       }
     } catch (err: unknown) {
       console.error(err);
-      setError((err as Error).message || 'An error occurred during authentication.');
+      setError((err as Error).message || 'Ocurrió un error durante la autenticación.');
     } finally {
       setLoading(false);
     }
@@ -52,11 +52,11 @@ export default function AuthForm() {
 
   return (
     <div className={styles.authContainer}>
-      <h2 className={styles.title}>{isLogin ? 'Welcome Back' : 'Create Account'}</h2>
+      <h2 className={styles.title}>{isLogin ? 'Bienvenido de nuevo' : 'Crear Cuenta'}</h2>
       <p className={styles.subtitle}>
         {isLogin 
-          ? 'Enter your credentials to access your gallery' 
-          : 'Sign up to upload photos with absolutely no quality loss'}
+          ? 'Ingresa tus credenciales para acceder a tu galería' 
+          : 'Regístrate para subir fotos sin pérdida de calidad'}
       </p>
 
       {error && <div className={styles.error}>{error}</div>}
@@ -65,7 +65,7 @@ export default function AuthForm() {
         {!isLogin && (
           <>
             <div className={styles.inputGroup}>
-              <label htmlFor="name" className={styles.label}>First Name</label>
+              <label htmlFor="name" className={styles.label}>Nombre</label>
               <input
                 id="name"
                 type="text"
@@ -76,7 +76,7 @@ export default function AuthForm() {
               />
             </div>
             <div className={styles.inputGroup}>
-              <label htmlFor="lastName" className={styles.label}>Last Name</label>
+              <label htmlFor="lastName" className={styles.label}>Apellido</label>
               <input
                 id="lastName"
                 type="text"
@@ -87,7 +87,7 @@ export default function AuthForm() {
               />
             </div>
             <div className={styles.inputGroup}>
-              <label htmlFor="whatsapp" className={styles.label}>WhatsApp Number</label>
+              <label htmlFor="whatsapp" className={styles.label}>Número de WhatsApp</label>
               <input
                 id="whatsapp"
                 type="tel"
@@ -102,7 +102,7 @@ export default function AuthForm() {
         )}
 
         <div className={styles.inputGroup}>
-          <label htmlFor="email" className={styles.label}>Email address</label>
+          <label htmlFor="email" className={styles.label}>Correo electrónico</label>
           <input
             id="email"
             type="email"
@@ -114,7 +114,7 @@ export default function AuthForm() {
         </div>
 
         <div className={styles.inputGroup}>
-          <label htmlFor="password" className={styles.label}>Password</label>
+          <label htmlFor="password" className={styles.label}>Contraseña</label>
           <input
             id="password"
             type="password"
@@ -126,18 +126,18 @@ export default function AuthForm() {
         </div>
 
         <button type="submit" className={styles.button} disabled={loading}>
-          {loading ? 'Processing...' : isLogin ? 'Sign In' : 'Sign Up'}
+          {loading ? 'Procesando...' : isLogin ? 'Iniciar Sesión' : 'Registrarse'}
         </button>
       </form>
 
       <div className={styles.toggleText}>
-        {isLogin ? "Don't have an account? " : "Already have an account? "}
+        {isLogin ? "¿No tienes una cuenta? " : "¿Ya tienes una cuenta? "}
         <button 
           type="button" 
           onClick={() => setIsLogin(!isLogin)}
           className={styles.toggleLink}
         >
-          {isLogin ? 'Sign Up' : 'Log In'}
+          {isLogin ? 'Registrarse' : 'Iniciar Sesión'}
         </button>
       </div>
     </div>

@@ -115,37 +115,37 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
   };
 
   if (loading) {
-    return <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading client collections...</div>;
+    return <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando colecciones del cliente...</div>;
   }
 
   if (!client) {
-    return <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--danger)' }}>Client not found.</div>;
+    return <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--danger)' }}>Cliente no encontrado.</div>;
   }
 
   return (
     <div>
       <div style={{ marginBottom: '2rem' }}>
         <Link href="/admin" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', marginBottom: '1rem', textDecoration: 'none' }}>
-          <ArrowLeft size={16} /> Back to Directory
+          <ArrowLeft size={16} /> Volver al Directorio
         </Link>
         <div>
           <h2 style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--foreground)' }}>
             {client.name} {client.lastName}
           </h2>
           <div style={{ color: 'var(--text-muted)', marginTop: '0.5rem', display: 'flex', gap: '1rem' }}>
-            <span>Phone: {client.whatsapp}</span>
-            <span>Email: {client.email}</span>
+            <span>Teléfono: {client.whatsapp}</span>
+            <span>Correo: {client.email}</span>
           </div>
         </div>
       </div>
 
       <div className={styles.gallerySection}>
-        <h3 className={styles.galleryHeader} style={{ borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>Client Collections</h3>
+        <h3 className={styles.galleryHeader} style={{ borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>Colecciones del Cliente</h3>
         
         {collections.length === 0 ? (
           <div className={styles.emptyGallery}>
             <Folder size={48} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
-            <p>This client hasn&apos;t created any collections yet.</p>
+            <p>Este cliente todavía no ha creado ninguna colección.</p>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
@@ -166,7 +166,7 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <Folder size={24} color="var(--primary)" />
-                    <h4 style={{ fontSize: '1.25rem', fontWeight: 600 }}>{col.name} <span style={{ color: 'var(--text-muted)', fontSize: '1rem', fontWeight: 400 }}>({col.photos.length} photos)</span></h4>
+                    <h4 style={{ fontSize: '1.25rem', fontWeight: 600 }}>{col.name} <span style={{ color: 'var(--text-muted)', fontSize: '1rem', fontWeight: 400 }}>({col.photos.length} fotos)</span></h4>
                   </div>
                   
                   <button 
@@ -187,14 +187,14 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
                     }}
                   >
                     <DownloadCloud size={18} />
-                    {downloadingId === col.id ? `Zipping... ${downloadProgress}%` : `Download Zip`}
+                    {downloadingId === col.id ? `Comprimiendo... ${downloadProgress}%` : `Descargar Zip`}
                   </button>
                 </div>
 
                 {col.photos.length === 0 ? (
                   <div className={styles.emptyGallery} style={{ padding: '2rem 1rem' }}>
                     <ImageIcon size={32} style={{ margin: '0 auto 0.5rem', opacity: 0.5 }} />
-                    <p style={{ fontSize: '0.875rem' }}>No photos in this collection.</p>
+                    <p style={{ fontSize: '0.875rem' }}>No hay fotos en esta colección.</p>
                   </div>
                 ) : (
                   <div className={styles.grid}>
