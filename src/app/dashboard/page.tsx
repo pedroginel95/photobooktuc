@@ -1,168 +1,178 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { collection, doc, setDoc, onSnapshot, query, orderBy, Timestamp } from 'firebase/firestore';
-import { storage, db } from '@/lib/firebase';
+import { collection, onSnapshot, query, orderBy, setDoc, doc, Timestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import styles from './page.module.css';
-import { UploadCloud, Image as ImageIcon } from 'lucide-react';
+import { FolderPlus, Folder } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
-interface UploadProgress {
-  filename: string;
-  progress: number;
-}
-
-interface PhotoData {
+interface CollectionData {
   id: string;
-  url: string;
-  filename: string;
+  name: string;
   createdAt: unknown;
 }
 
-export default function DashboardPage() {
+export default function DashboardLibraryPage() {
   const { user } = useAuth();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploads, setUploads] = useState<UploadProgress[]>([]);
-  const [photos, setPhotos] = useState<PhotoData[]>([]);
+  const [collections, setCollections] = useState<CollectionData[]>([]);
+  const [newCollectionName, setNewCollectionName] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     if (!user) return;
 
-    // Real-time listener for user's photos
+    // Real-time listener for user's collections
     const q = query(
-      collection(db, `users/${user.uid}/photos`),
+      collection(db, `users/${user.uid}/collections`),
       orderBy('createdAt', 'desc')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const photosData: PhotoData[] = [];
+      const colData: CollectionData[] = [];
       snapshot.forEach((doc) => {
-        photosData.push({ id: doc.id, ...doc.data() } as PhotoData);
+        colData.push({ id: doc.id, ...doc.data() } as CollectionData);
       });
-      setPhotos(photosData);
+      setCollections(colData);
     });
 
     return () => unsubscribe();
   }, [user]);
 
-  const handleCardClick = () => {
-    fileInputRef.current?.click();
-  };
+  const handleCreateCollection = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !newCollectionName.trim()) return;
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      handleUploads(Array.from(e.target.files));
-      
-      // Reset input so the same files can be selected again if needed
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }
-  };
-
-  const handleUploads = (files: File[]) => {
-    if (!user) return;
-
-    files.forEach((file) => {
+    setIsCreating(true);
+    try {
       const tempId = Date.now().toString() + '-' + Math.floor(Math.random() * 1000);
-      const filename = file.name;
-      const storageRef = ref(storage, `users/${user.uid}/${tempId}-${filename}`);
+      await setDoc(doc(db, `users/${user.uid}/collections`, tempId), {
+        name: newCollectionName.trim(),
+        createdAt: Timestamp.now()
+      });
       
-      const uploadTask = uploadBytesResumable(storageRef, file);
-
-      // Add to tracked uploads
-      setUploads(prev => [...prev, { filename, progress: 0 }]);
-
-      uploadTask.on('state_changed',
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          setUploads(prev => 
-            prev.map(u => u.filename === filename ? { ...u, progress } : u)
-          );
-        },
-        (error) => {
-          console.error("Upload failed", error);
-        },
-        async () => {
-          // Upload complete
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          
-          // Save reference to Firestore
-          await setDoc(doc(db, `users/${user.uid}/photos`, tempId), {
-            filename,
-            url: downloadURL,
-            createdAt: Timestamp.now()
-          });
-
-          // Remove from tracked uploads shortly after finish
-          setTimeout(() => {
-            setUploads(prev => prev.filter(u => u.filename !== filename));
-          }, 1500);
-        }
-      );
-    });
+      setNewCollectionName('');
+      router.push(`/dashboard/collection/${tempId}`);
+    } catch (error) {
+      console.error("Error creating collection:", error);
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   return (
     <div>
       <div className={styles.dashboardHeader}>
         <div>
-          <h2 className={styles.title}>Your Gallery</h2>
-          <p className={styles.subtitle}>Upload and preview your photos here.</p>
+          <h2 className={styles.title}>Your Library</h2>
+          <p className={styles.subtitle}>Create collections to organize your photos</p>
         </div>
       </div>
 
-      <div className={styles.uploaderCard} onClick={handleCardClick}>
-        <UploadCloud size={48} className={styles.uploadIcon} />
-        <div className={styles.uploadText}>Tap to select photos from your device</div>
-        <div className={styles.uploadSubtext}>Upload original, high-quality files directly</div>
-        <input 
-          type="file" 
-          multiple 
-          accept="image/*" 
-          className={styles.fileInput}
-          ref={fileInputRef}
-          onChange={handleFileChange}
-        />
-        <button className={styles.uploadBtn}>Browse Files</button>
+      <div style={{
+        backgroundColor: 'var(--surface)',
+        padding: '2rem',
+        borderRadius: 'var(--radius)',
+        border: '1px solid var(--border)',
+        marginBottom: '3rem'
+      }}>
+        <h3 style={{ fontSize: '1.25rem', marginBottom: '1rem', fontWeight: 600 }}>Create New Collection</h3>
+        <form onSubmit={handleCreateCollection} style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          <input
+            type="text"
+            placeholder="e.g. Wedding 2026, Birthday..."
+            value={newCollectionName}
+            onChange={(e) => setNewCollectionName(e.target.value)}
+            style={{
+              flex: 1,
+              minWidth: '200px',
+              padding: '0.75rem 1rem',
+              borderRadius: 'var(--radius)',
+              border: '1px solid var(--border)',
+              backgroundColor: 'var(--background)',
+              color: 'var(--foreground)'
+            }}
+            required
+          />
+          <button 
+            type="submit"
+            disabled={isCreating || !newCollectionName.trim()}
+            style={{
+              backgroundColor: 'var(--primary)',
+              color: 'white',
+              border: 'none',
+              padding: '0.75rem 1.5rem',
+              borderRadius: 'var(--radius)',
+              fontWeight: 600,
+              cursor: isCreating || !newCollectionName.trim() ? 'not-allowed' : 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              opacity: isCreating || !newCollectionName.trim() ? 0.7 : 1
+            }}
+          >
+            <FolderPlus size={20} />
+            {isCreating ? 'Creating...' : 'Create'}
+          </button>
+        </form>
       </div>
-
-      {uploads.length > 0 && (
-        <div className={styles.progressList}>
-          {uploads.map((upload, idx) => (
-            <div key={idx} className={styles.progressItem}>
-              <div className={styles.progressHeader}>
-                <span className={styles.filename}>{upload.filename}</span>
-                <span className={styles.percentage}>{Math.round(upload.progress)}%</span>
-              </div>
-              <div className={styles.progressBarContainer}>
-                <div 
-                  className={styles.progressBar} 
-                  style={{ width: `${upload.progress}%` }}
-                ></div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
 
       <div className={styles.gallerySection}>
-        <h3 className={styles.galleryHeader}>Uploaded Photos ({photos.length})</h3>
+        <h3 className={styles.galleryHeader}>Your Collections ({collections.length})</h3>
         
-        {photos.length === 0 ? (
+        {collections.length === 0 ? (
           <div className={styles.emptyGallery}>
-            <ImageIcon size={48} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
-            <p>No photos uploaded yet. They will appear here once uploaded.</p>
+            <Folder size={48} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
+            <p>You haven&apos;t created any collections yet.</p>
           </div>
         ) : (
-          <div className={styles.grid}>
-            {photos.map((photo) => (
-              <div key={photo.id} className={styles.imageWrapper}>
-                {/* Fallback to full image for previews. In production, a cloud function creates tiny thumbnails */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={photo.url} alt={photo.filename} className={styles.image} loading="lazy" />
-              </div>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+            gap: '1.5rem'
+          }}>
+            {collections.map((col) => (
+              <Link 
+                href={`/dashboard/collection/${col.id}`} 
+                key={col.id}
+                style={{ textDecoration: 'none' }}
+              >
+                <div style={{
+                  backgroundColor: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)',
+                  padding: '1.5rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '1rem',
+                  transition: 'transform 0.2s, border-color 0.2s',
+                  cursor: 'pointer'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.borderColor = 'var(--primary)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'none';
+                  e.currentTarget.style.borderColor = 'var(--border)';
+                }}
+                >
+                  <Folder size={32} color="var(--primary)" />
+                  <div style={{ overflow: 'hidden' }}>
+                    <h4 style={{ 
+                      color: 'var(--foreground)', 
+                      fontWeight: 600,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
+                    }}>{col.name}</h4>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Open collection</p>
+                  </div>
+                </div>
+              </Link>
             ))}
           </div>
         )}
