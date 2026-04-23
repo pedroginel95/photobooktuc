@@ -17,10 +17,14 @@ export default function DashboardLayout({
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.push('/');
+    if (!loading) {
+      if (!user) {
+        router.push('/');
+      } else if (profile?.isAdmin) {
+        router.push('/admin');
+      }
     }
-  }, [user, loading, router]);
+  }, [user, profile, loading, router]);
 
   if (loading || !user) {
     return (
