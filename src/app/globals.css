@@ -1,8 +1,8 @@
 :root {
   --background: #f8fafc;
   --foreground: #0f172a;
-  --primary: #3b82f6;
-  --primary-hover: #2563eb;
+  --primary: #ff5757;
+  --primary-hover: #e64e4e;
   --surface: #ffffff;
   --border: #e2e8f0;
   --text-muted: #64748b;
@@ -14,8 +14,8 @@
 [data-theme='dark'] {
   --background: #0f172a;
   --foreground: #f8fafc;
-  --primary: #60a5fa;
-  --primary-hover: #3b82f6;
+  --primary: #ff5757;
+  --primary-hover: #e64e4e;
   --surface: #1e293b;
   --border: #334155;
   --text-muted: #94a3b8;

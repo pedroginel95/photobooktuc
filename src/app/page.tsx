@@ -1,6 +1,7 @@
 import styles from './page.module.css';
 import AuthForm from '@/components/AuthForm';
 import { Clock, Award, PenTool, CheckCircle, Smartphone, MapPin } from 'lucide-react';
+import Image from 'next/image';
 
 export default function Home() {
   return (
@@ -8,9 +9,10 @@ export default function Home() {
       {/* Navbar */}
       <header className={styles.navbar}>
         <div className={styles.navContainer}>
-          <div className={styles.logo}>PHOTOBOOKTUC</div>
+          <div className={styles.logo}>
+            <Image src="/logo.png" alt="Photobook Tuc" width={220} height={40} style={{ objectFit: 'contain' }} />
+          </div>
           <div className={styles.navLinks}>
-            <a href="#productos">Productos</a>
             <a href="#contacto">Contacto</a>
           </div>
         </div>
@@ -59,43 +61,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Products Section */}
-      <section className={styles.products} id="productos">
-        <div className={styles.sectionContainer}>
-          <h2 className={styles.sectionTitle}>Nuestros Productos</h2>
-          <p className={styles.sectionSubtitle}>Fotografías y fotobooks diseñados para emocionar</p>
-          <div className={styles.productGrid}>
-            <div className={styles.productCard}>
-              <h3>Fotobook A4 Clásico</h3>
-              <div className={styles.price}>$39.990</div>
-              <ul>
-                <li>13 hojas (26 páginas)</li>
-                <li>Capacidad hasta 50 fotos</li>
-                <li>Ideal para eventos y viajes</li>
-              </ul>
-            </div>
-            <div className={styles.productCard}>
-              <h3>Fotobook A5 Compacto</h3>
-              <div className={styles.price}>$38.990</div>
-              <ul>
-                <li>26 hojas (52 páginas)</li>
-                <li>Capacidad para 52 fotos</li>
-                <li>Diseño minimalista y ordenado</li>
-              </ul>
-            </div>
-            <div className={styles.productCard}>
-              <h3>Fotobook Personalizado</h3>
-              <div className={styles.price}>Variable</div>
-              <ul>
-                <li>Formato libre</li>
-                <li>Hojas y fotos ilimitadas</li>
-                <li>Diseño 100% a tu medida</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* Emotional Section */}
       <section className={styles.editorial}>
         <div className={styles.sectionContainer}>
@@ -116,7 +81,9 @@ export default function Home() {
         <div className={styles.sectionContainer}>
           <div className={styles.footerSplit}>
             <div>
-              <h2 className={styles.logo}>PHOTOBOOKTUC</h2>
+              <div className={styles.logo} style={{ marginBottom: '1rem' }}>
+                <Image src="/logo.png" alt="Photobook Tuc" width={200} height={36} style={{ objectFit: 'contain' }} />
+              </div>
               <p className={styles.footerDetail}>
                 <MapPin size={18} style={{display:'inline', marginRight:'8px'}} />
                 Envíos a domicilio sin cargo en San Miguel de Tucumán y alrededores.

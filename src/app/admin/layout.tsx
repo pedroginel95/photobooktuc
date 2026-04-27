@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { auth } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
 import { LogOut } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import styles from '../dashboard/layout.module.css'; // Reusing dashboard styles
 
@@ -46,7 +47,9 @@ export default function AdminLayout({
       <header className={styles.header}>
         <div className={styles.headerContent}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <h1 className={styles.logo}>Admin Panel</h1>
+            <div className={styles.logo} style={{ display: 'flex', alignItems: 'center' }}>
+              <Image src="/logo.png" alt="Admin Panel" width={180} height={32} style={{ objectFit: 'contain' }} />
+            </div>
             <Link href="/admin" style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
               Directorio
             </Link>

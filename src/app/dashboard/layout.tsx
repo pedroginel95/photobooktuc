@@ -7,6 +7,7 @@ import styles from './layout.module.css';
 import { auth } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
 import { LogOut } from 'lucide-react';
+import Image from 'next/image';
 
 export default function DashboardLayout({
   children,
@@ -44,7 +45,9 @@ export default function DashboardLayout({
     <div className={styles.dashboardContainer}>
       <header className={styles.header}>
         <div className={styles.headerContent}>
-          <h1 className={styles.logo}>PHOTOBOOKTUC</h1>
+          <div className={styles.logo} style={{ display: 'flex', alignItems: 'center' }}>
+            <Image src="/logo.png" alt="Photobook Tuc" width={180} height={32} style={{ objectFit: 'contain' }} />
+          </div>
           <div className={styles.userSection}>
             <span className={styles.greeting}>
               Hola, {profile?.name || user.email?.split('@')[0]}
