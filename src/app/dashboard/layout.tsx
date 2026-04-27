@@ -45,8 +45,8 @@ export default function DashboardLayout({
     <div className={styles.dashboardContainer}>
       <header className={styles.header}>
         <div className={styles.headerContent}>
-          <div className={styles.logo} style={{ display: 'flex', alignItems: 'center' }}>
-            <Image src="/logo.png" alt="Photobook Tuc" width={180} height={32} style={{ objectFit: 'contain' }} />
+          <div className={styles.logo} style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
+            <Image src="/logo.png" alt="Photobook Tuc" width={48} height={48} style={{ objectFit: 'cover', borderRadius: '50%' }} />
           </div>
           <div className={styles.userSection}>
             <span className={styles.greeting}>

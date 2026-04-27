@@ -9,8 +9,9 @@ export default function Home() {
       {/* Navbar */}
       <header className={styles.navbar}>
         <div className={styles.navContainer}>
-          <div className={styles.logo}>
-            <Image src="/logo.png" alt="Photobook Tuc" width={220} height={40} style={{ objectFit: 'contain' }} />
+          <div className={styles.logo} style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: '0.75rem' }}>
+            <Image src="/logo.png" alt="Photobook Tuc" width={56} height={56} style={{ objectFit: 'cover', borderRadius: '50%' }} />
+            <span className={styles.desktopLogoText}>PHOTOBOOKTUC</span>
           </div>
           <div className={styles.navLinks}>
             <a href="#contacto">Contacto</a>
@@ -30,7 +31,7 @@ export default function Home() {
               <span className={styles.badge}><CheckCircle size={18}/> Calidad Láser</span>
               <span className={styles.badge}><Smartphone size={18}/> Directo de tu celular</span>
             </div>
-            <a href="#auth" className={styles.mobileCta}>Comenzá Ahora</a>
+            <a href="#auth" className={styles.mobileCta}>Carga tus fotos</a>
           </div>
           <div className={styles.authSection} id="auth">
             <AuthForm />
@@ -61,28 +62,14 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Emotional Section */}
-      <section className={styles.editorial}>
-        <div className={styles.sectionContainer}>
-          <div className={styles.editorialContent}>
-            <h2>El Mejor Regalo</h2>
-            <p>
-              Regalar un photobook es mucho más que entregar un presente; es regalar la oportunidad de detener el tiempo. En un mundo donde todo pasa rápido y las fotos se pierden en la galería del celular, entregar un libro impreso es una invitación a sentarse, compartir y revivir esas historias que nos hicieron felices. Es transformar un archivo digital invisible en un tesoro tangible que se puede tocar, oler y disfrutar en familia.
-            </p>
-            <p>
-              A diferencia de la ropa o la tecnología que pasan de moda, este es un regalo que gana valor con los años. Es el detalle perfecto para quien cree que ya lo tiene todo, porque nadie espera recibir sus propios recuerdos convertidos en una obra de arte. Un photobook no se guarda en un cajón; se deja en la mesa del living para volver a emocionar, una y otra vez, a quien más querés.
-            </p>
-          </div>
-        </div>
-      </section>
-
       {/* Footer */}
       <footer className={styles.footer} id="contacto">
         <div className={styles.sectionContainer}>
           <div className={styles.footerSplit}>
             <div>
-              <div className={styles.logo} style={{ marginBottom: '1rem' }}>
-                <Image src="/logo.png" alt="Photobook Tuc" width={200} height={36} style={{ objectFit: 'contain' }} />
+              <div className={styles.logo} style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: '0.75rem' }}>
+                <Image src="/logo.png" alt="Photobook Tuc" width={56} height={56} style={{ objectFit: 'cover', borderRadius: '50%' }} />
+                <span className={styles.desktopLogoText}>PHOTOBOOKTUC</span>
               </div>
               <p className={styles.footerDetail}>
                 <MapPin size={18} style={{display:'inline', marginRight:'8px'}} />

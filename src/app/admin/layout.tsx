@@ -47,8 +47,8 @@ export default function AdminLayout({
       <header className={styles.header}>
         <div className={styles.headerContent}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <div className={styles.logo} style={{ display: 'flex', alignItems: 'center' }}>
-              <Image src="/logo.png" alt="Admin Panel" width={180} height={32} style={{ objectFit: 'contain' }} />
+            <div className={styles.logo} style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
+              <Image src="/logo.png" alt="Admin Panel" width={48} height={48} style={{ objectFit: 'cover', borderRadius: '50%' }} />
             </div>
             <Link href="/admin" style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
               Directorio

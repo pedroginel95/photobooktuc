@@ -33,6 +33,16 @@
   color: var(--foreground);
 }
 
+.desktopLogoText {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .desktopLogoText {
+    display: inline;
+  }
+}
+
 .navLinks {
   display: flex;
   gap: 1.5rem;
@@ -69,6 +79,8 @@
     align-items: center;
     justify-content: space-between;
     gap: 4rem;
+    min-height: auto;
+    padding: 6rem 2rem;
   }
 }
 
