@@ -25,7 +25,7 @@ export default function Home() {
           <div className={styles.heroSection}>
             <h1 className={styles.title}>Hacé que tus recuerdos duren para siempre.</h1>
             <p className={styles.description}>
-              Diseñamos tu book a medida de tus necesidades y gustos. Subí hasta 50 fotos por álbum directamente desde tu celular, sin perder calidad.
+              Diseñamos tu book a medida de tus necesidades y gustos. Subí hasta 80 fotos por álbum directamente desde tu celular, sin perder calidad.
             </p>
             <div className={styles.badges}>
               <span className={styles.badge}><CheckCircle size={18}/> Calidad Láser</span>

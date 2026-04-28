@@ -80,6 +80,11 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
   const handleUploads = (files: File[]) => {
     if (!user) return;
 
+    if (photos.length + files.length > 80) {
+      alert(`No puedes subir más de 80 fotos por colección. Actualmente tienes ${photos.length} fotos, e intentas subir ${files.length} más.`);
+      return;
+    }
+
     files.forEach((file) => {
       const tempId = Date.now().toString() + '-' + Math.floor(Math.random() * 1000);
       const filename = file.name;
