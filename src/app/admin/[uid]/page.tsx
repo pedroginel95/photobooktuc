@@ -89,7 +89,11 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
       
       for (const photo of col.photos) {
         try {
-          const response = await fetch(photo.url);
+          // Use our proxy to avoid CORS issues
+          const proxyUrl = `/api/proxy?url=${encodeURIComponent(photo.url)}`;
+          const response = await fetch(proxyUrl);
+          if (!response.ok) throw new Error('Failed to fetch via proxy');
+          
           const blob = await response.blob();
           
           zip.file(photo.filename, blob);
