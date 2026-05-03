@@ -14,6 +14,7 @@ export default function AuthForm() {
   const [name, setName] = useState('');
   const [lastName, setLastName] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
+  const [photobookType, setPhotobookType] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -37,6 +38,7 @@ export default function AuthForm() {
           lastName,
           whatsapp,
           email,
+          photobookType,
           createdAt: new Date().toISOString()
         });
         
@@ -97,6 +99,38 @@ export default function AuthForm() {
                 placeholder="+1 234 567 8900"
                 required={!isLogin}
               />
+            </div>
+
+            <div className={styles.inputGroup}>
+              <label className={styles.label}>
+                Tipo de Foto Libro <span className={styles.required}>*</span>
+              </label>
+              <p className={styles.fieldHint}>Seleccioná el modelo que encargaste</p>
+              <div className={styles.optionGrid}>
+                {[
+                  { value: 'A4 Tapa Dura',   size: 'A4', cover: 'Tapa Dura' },
+                  { value: 'A5 Tapa Dura',   size: 'A5', cover: 'Tapa Dura' },
+                  { value: 'A4 Tapa Blanda', size: 'A4', cover: 'Tapa Blanda' },
+                  { value: 'A5 Tapa Blanda', size: 'A5', cover: 'Tapa Blanda' },
+                ].map((opt) => (
+                  <label
+                    key={opt.value}
+                    className={`${styles.optionCard} ${photobookType === opt.value ? styles.optionCardSelected : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="photobookType"
+                      value={opt.value}
+                      checked={photobookType === opt.value}
+                      onChange={(e) => setPhotobookType(e.target.value)}
+                      required={!isLogin}
+                      className={styles.optionRadio}
+                    />
+                    <span className={styles.optionSize}>{opt.size}</span>
+                    <span className={styles.optionCover}>{opt.cover}</span>
+                  </label>
+                ))}
+              </div>
             </div>
           </>
         )}
