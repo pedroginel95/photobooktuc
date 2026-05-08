@@ -64,6 +64,19 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
             pList.push({ id: p.id, ...p.data() } as PhotoData);
           });
 
+          // Aplicar orden manual del usuario si existe
+          const photoOrder = d.data().photoOrder as string[] | undefined;
+          if (photoOrder && photoOrder.length > 0) {
+            pList.sort((a, b) => {
+              const ai = photoOrder.indexOf(a.id);
+              const bi = photoOrder.indexOf(b.id);
+              if (ai === -1 && bi === -1) return 0;
+              if (ai === -1) return 1;
+              if (bi === -1) return -1;
+              return ai - bi;
+            });
+          }
+
           cols.push({
             id: d.id,
             name: d.data().name || 'Unnamed',
