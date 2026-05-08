@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { collection, getDocs, query, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Search, UserCheck, CheckCircle2, Circle, Folder, Archive, Users } from 'lucide-react';
+import { Search, UserCheck, CheckCircle2, Circle, Folder, Archive, Users, PackageCheck } from 'lucide-react';
 import Link from 'next/link';
 
 interface UserData {
@@ -14,9 +14,23 @@ interface UserData {
   email: string;
   createdAt: string;
   photobookType?: string;
-  clientStatus?: 'active' | 'done';
+  clientStatus?: 'active' | 'done' | 'finalized';
   hasArchived?: boolean;
 }
+
+type ClientStatus = 'active' | 'done' | 'finalized';
+
+const STATUS_LABELS: Record<ClientStatus, string> = {
+  active: 'Pendiente',
+  done: 'Realizado',
+  finalized: 'Pedido Finalizado',
+};
+
+const STATUS_COLORS: Record<ClientStatus, { bg: string; color: string; border: string }> = {
+  active:    { bg: 'var(--background)',           color: 'var(--text-muted)', border: 'var(--border)' },
+  done:      { bg: 'rgba(34,197,94,0.1)',         color: '#16a34a',           border: 'rgba(34,197,94,0.4)' },
+  finalized: { bg: 'rgba(168,85,247,0.1)',        color: '#9333ea',           border: 'rgba(168,85,247,0.4)' },
+};
 
 export default function AdminDirectory() {
   const [users, setUsers] = useState<UserData[]>([]);
@@ -47,10 +61,7 @@ export default function AdminDirectory() {
     fetchUsers();
   }, []);
 
-  const handleToggleDone = async (e: React.MouseEvent, userId: string, currentStatus?: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const newStatus = currentStatus === 'done' ? 'active' : 'done';
+  const handleChangeStatus = async (userId: string, newStatus: ClientStatus) => {
     setTogglingId(userId);
     try {
       await updateDoc(doc(db, 'users', userId), { clientStatus: newStatus });
@@ -74,8 +85,9 @@ export default function AdminDirectory() {
     );
   };
 
-  const pendingUsers = users.filter(u => u.clientStatus !== 'done' && matchesSearch(u));
+  const pendingUsers = users.filter(u => (!u.clientStatus || u.clientStatus === 'active') && matchesSearch(u));
   const doneUsers = users.filter(u => u.clientStatus === 'done' && matchesSearch(u));
+  const finalizedUsers = users.filter(u => u.clientStatus === 'finalized' && matchesSearch(u));
   const archivedUsers = users.filter(u => u.hasArchived && matchesSearch(u));
 
   const tabStyle = (tab: 'directory' | 'archived'): React.CSSProperties => ({
@@ -95,31 +107,42 @@ export default function AdminDirectory() {
   });
 
   const renderClientCard = (user: UserData) => {
-    const isDone = user.clientStatus === 'done';
+    const status: ClientStatus = (user.clientStatus as ClientStatus) || 'active';
+    const isDone = status === 'done';
+    const isFinalized = status === 'finalized';
+    const colors = STATUS_COLORS[status];
+
+    const cardBorder = isFinalized
+      ? 'rgba(168,85,247,0.35)'
+      : isDone ? 'rgba(34,197,94,0.35)' : 'var(--border)';
+    const cardBorderHover = isFinalized
+      ? 'rgba(168,85,247,0.6)'
+      : isDone ? 'rgba(34,197,94,0.6)' : 'var(--primary)';
+
     return (
       <div key={user.id} style={{ position: 'relative' }}>
         <Link
           href={`/admin/${user.id}`}
           style={{
             backgroundColor: 'var(--surface)',
-            border: `1px solid ${isDone ? 'rgba(34,197,94,0.35)' : 'var(--border)'}`,
+            border: `1px solid ${cardBorder}`,
             borderRadius: 'var(--radius)',
             padding: '1.25rem 1.5rem',
             display: 'block',
             transition: 'border-color 0.2s',
             textDecoration: 'none',
             color: 'inherit',
-            opacity: isDone ? 0.8 : 1,
+            opacity: status === 'active' ? 1 : 0.85,
           }}
-          onMouseEnter={(e) => e.currentTarget.style.borderColor = isDone ? 'rgba(34,197,94,0.6)' : 'var(--primary)'}
-          onMouseLeave={(e) => e.currentTarget.style.borderColor = isDone ? 'rgba(34,197,94,0.35)' : 'var(--border)'}
+          onMouseEnter={(e) => e.currentTarget.style.borderColor = cardBorderHover}
+          onMouseLeave={(e) => e.currentTarget.style.borderColor = cardBorder}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <h3 style={{
                 fontSize: '1.1rem',
                 fontWeight: 600,
-                color: isDone ? 'var(--text-muted)' : 'var(--primary)',
+                color: status === 'active' ? 'var(--primary)' : 'var(--text-muted)',
                 marginBottom: '0.4rem',
                 display: 'flex',
                 alignItems: 'center',
@@ -139,19 +162,6 @@ export default function AdminDirectory() {
                     whiteSpace: 'nowrap',
                   }}>
                     📖 {user.photobookType}
-                  </span>
-                )}
-                {isDone && (
-                  <span style={{
-                    fontSize: '0.7rem',
-                    backgroundColor: 'rgba(34,197,94,0.15)',
-                    color: '#16a34a',
-                    padding: '0.1rem 0.5rem',
-                    borderRadius: '999px',
-                    fontWeight: 500,
-                    border: '1px solid rgba(34,197,94,0.3)',
-                  }}>
-                    Realizado
                   </span>
                 )}
                 {user.hasArchived && (
@@ -177,33 +187,35 @@ export default function AdminDirectory() {
               </div>
             </div>
 
-            {/* Botón Realizado */}
-            <button
-              onClick={(e) => handleToggleDone(e, user.id, user.clientStatus)}
+            {/* Dropdown de estado */}
+            <select
+              value={status}
               disabled={togglingId === user.id}
-              title={isDone ? 'Marcar como pendiente' : 'Marcar como realizado'}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              onChange={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleChangeStatus(user.id, e.target.value as ClientStatus);
+              }}
               style={{
                 flexShrink: 0,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-                padding: '0.45rem 0.75rem',
+                padding: '0.45rem 0.6rem',
                 borderRadius: 'var(--radius)',
                 fontSize: '0.78rem',
                 fontWeight: 600,
                 cursor: togglingId === user.id ? 'not-allowed' : 'pointer',
-                border: isDone ? '1px solid rgba(34,197,94,0.4)' : '1px solid var(--border)',
-                backgroundColor: isDone ? 'rgba(34,197,94,0.1)' : 'var(--background)',
-                color: isDone ? '#16a34a' : 'var(--text-muted)',
+                border: `1px solid ${colors.border}`,
+                backgroundColor: colors.bg,
+                color: colors.color,
                 transition: 'all 0.2s',
                 opacity: togglingId === user.id ? 0.5 : 1,
+                minWidth: '155px',
               }}
             >
-              {isDone
-                ? <><CheckCircle2 size={14} /> Realizado</>
-                : <><Circle size={14} /> Pendiente</>
-              }
-            </button>
+              <option value="active" style={{ backgroundColor: 'var(--surface)', color: 'var(--foreground)' }}>⚪ Pendiente</option>
+              <option value="done" style={{ backgroundColor: 'var(--surface)', color: 'var(--foreground)' }}>✅ Realizado</option>
+              <option value="finalized" style={{ backgroundColor: 'var(--surface)', color: 'var(--foreground)' }}>📦 Pedido Finalizado</option>
+            </select>
           </div>
         </Link>
       </div>
@@ -312,12 +324,12 @@ export default function AdminDirectory() {
                 )}
               </div>
 
-              {/* Divider */}
+              {/* Divider Realizados */}
               {doneUsers.length > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
                   <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border)' }} />
                   <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <CheckCircle2 size={14} color="#16a34a" /> REALIZADOS
+                    <CheckCircle2 size={14} color="#16a34a" /> REALIZADOS ({doneUsers.length})
                   </span>
                   <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border)' }} />
                 </div>
@@ -325,12 +337,30 @@ export default function AdminDirectory() {
 
               {/* REALIZADOS */}
               {doneUsers.length > 0 && (
-                <div style={{ display: 'grid', gap: '0.75rem', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+                <div style={{ display: 'grid', gap: '0.75rem', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', marginBottom: '2.5rem' }}>
                   {doneUsers.map(renderClientCard)}
                 </div>
               )}
 
-              {pendingUsers.length === 0 && doneUsers.length === 0 && (
+              {/* Divider Pedido Finalizado */}
+              {finalizedUsers.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
+                  <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border)' }} />
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <PackageCheck size={14} color="#9333ea" /> PEDIDO FINALIZADO ({finalizedUsers.length})
+                  </span>
+                  <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border)' }} />
+                </div>
+              )}
+
+              {/* PEDIDO FINALIZADO */}
+              {finalizedUsers.length > 0 && (
+                <div style={{ display: 'grid', gap: '0.75rem', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+                  {finalizedUsers.map(renderClientCard)}
+                </div>
+              )}
+
+              {pendingUsers.length === 0 && doneUsers.length === 0 && finalizedUsers.length === 0 && (
                 <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'var(--surface)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
                   <UserCheck size={48} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
                   <p style={{ color: 'var(--text-muted)' }}>No se encontraron clientes.</p>

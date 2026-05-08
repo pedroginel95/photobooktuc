@@ -46,6 +46,9 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
   const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
 
+  // Drag & drop
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+
   // Aplicar orden manual a las fotos
   useEffect(() => {
     if (photoOrder.length > 0) {
@@ -469,7 +472,7 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
             color: 'var(--primary)', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem',
           }}>
             <GripVertical size={16} />
-            Usá las flechas ↑ ↓ para reordenar. Presioná <strong style={{ marginLeft: '0.2rem' }}>Guardar orden</strong> cuando termines.
+            Arrastrá las fotos para reordenarlas (también podés usar las flechas ↑ ↓). Presioná <strong style={{ marginLeft: '0.2rem' }}>Guardar orden</strong> cuando termines.
           </div>
         )}
 
@@ -496,18 +499,41 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
             {orderedPhotos.map((photo, idx) => {
               const isSelected = selectedPhotos.has(photo.id);
 
+              const isDragging = draggedIndex === idx;
+
               return (
                 <div
                   key={photo.id}
                   className={styles.imageWrapper}
                   onClick={selectMode ? () => handleToggleSelect(photo.id) : undefined}
+                  draggable={sortMode}
+                  onDragStart={(e) => {
+                    if (!sortMode) return;
+                    e.dataTransfer.effectAllowed = 'move';
+                    setDraggedIndex(idx);
+                  }}
+                  onDragOver={(e) => {
+                    if (!sortMode || draggedIndex === null) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    if (draggedIndex === idx) return;
+                    const newPhotos = [...orderedPhotos];
+                    const [moved] = newPhotos.splice(draggedIndex, 1);
+                    newPhotos.splice(idx, 0, moved);
+                    setOrderedPhotos(newPhotos);
+                    setDraggedIndex(idx);
+                  }}
+                  onDragEnd={() => setDraggedIndex(null)}
+                  onDrop={(e) => { e.preventDefault(); setDraggedIndex(null); }}
                   style={{
-                    cursor: selectMode ? 'pointer' : undefined,
+                    cursor: selectMode ? 'pointer' : sortMode ? 'move' : undefined,
                     border: selectMode
                       ? isSelected ? '2.5px solid #ef4444' : '2px solid var(--border)'
                       : sortMode ? '2px solid var(--primary)' : undefined,
                     boxShadow: selectMode && isSelected ? '0 0 0 1px rgba(239,68,68,0.2)' : undefined,
-                    transition: 'border-color 0.15s, box-shadow 0.15s',
+                    opacity: isDragging ? 0.4 : 1,
+                    transform: isDragging ? 'scale(0.96)' : undefined,
+                    transition: 'border-color 0.15s, box-shadow 0.15s, opacity 0.15s, transform 0.15s',
                   }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
