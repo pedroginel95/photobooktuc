@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { collection, getDocs, query, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Search, UserCheck, CheckCircle2, Circle, Folder, Archive, Users, PackageCheck } from 'lucide-react';
 import Link from 'next/link';
@@ -40,25 +40,23 @@ export default function AdminDirectory() {
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
-        const querySnapshot = await getDocs(q);
-
+    const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
         const usersList: UserData[] = [];
-        querySnapshot.forEach((d) => {
+        snapshot.forEach((d) => {
           usersList.push({ id: d.id, ...d.data() } as UserData);
         });
-
         setUsers(usersList);
-      } catch (error) {
+        setLoading(false);
+      },
+      (error) => {
         console.error("Error fetching users:", error);
-      } finally {
         setLoading(false);
       }
-    };
-
-    fetchUsers();
+    );
+    return () => unsubscribe();
   }, []);
 
   const handleChangeStatus = async (userId: string, newStatus: ClientStatus) => {

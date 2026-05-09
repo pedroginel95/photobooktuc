@@ -3,7 +3,7 @@
 import React, { useEffect, useState, use } from 'react';
 import { doc, getDoc, collection, getDocs, query, orderBy, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { DownloadCloud, ArrowLeft, Image as ImageIcon, Folder, Trash2, Archive, ArchiveRestore, Eye, EyeOff, Pencil, Save, X } from 'lucide-react';
+import { DownloadCloud, ArrowLeft, Image as ImageIcon, Folder, Trash2, Archive, ArchiveRestore, Eye, EyeOff, Pencil, Save, X, Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
@@ -46,6 +46,11 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<UserData>({ name: '', lastName: '', whatsapp: '', email: '', photobookType: '' });
   const [savingEdit, setSavingEdit] = useState(false);
+
+  // Lightbox de fotos
+  const [lightbox, setLightbox] = useState<{ collectionId: string; index: number } | null>(null);
+  const [copying, setCopying] = useState(false);
+  const [copyOk, setCopyOk] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -109,15 +114,20 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
     try {
       const zip = new JSZip();
       let processed = 0;
+      const padLength = String(col.photos.length).length;
 
-      for (const photo of col.photos) {
+      for (let i = 0; i < col.photos.length; i++) {
+        const photo = col.photos[i];
         try {
           const proxyUrl = `/api/proxy?url=${encodeURIComponent(photo.url)}`;
           const response = await fetch(proxyUrl);
           if (!response.ok) throw new Error('Failed to fetch via proxy');
 
           const blob = await response.blob();
-          zip.file(photo.filename, blob);
+
+          // Prefijo numérico según el orden (01-, 02-, ...)
+          const prefix = String(i + 1).padStart(padLength, '0');
+          zip.file(`${prefix}-${photo.filename}`, blob);
 
           processed += 1;
           setDownloadProgress(Math.round((processed / col.photos.length) * 100));
@@ -232,6 +242,79 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
       setSavingEdit(false);
     }
   };
+
+  // ── Lightbox helpers ────────────────────────────────────────────────────────
+
+  const lightboxCollection = lightbox ? collections.find(c => c.id === lightbox.collectionId) : null;
+  const lightboxPhoto = lightboxCollection ? lightboxCollection.photos[lightbox!.index] : null;
+
+  const handleLightboxNav = (dir: 'prev' | 'next') => {
+    if (!lightbox || !lightboxCollection) return;
+    const total = lightboxCollection.photos.length;
+    const next = dir === 'next'
+      ? (lightbox.index + 1) % total
+      : (lightbox.index - 1 + total) % total;
+    setLightbox({ ...lightbox, index: next });
+    setCopyOk(false);
+  };
+
+  const handleCopyImage = async (url: string) => {
+    setCopying(true);
+    setCopyOk(false);
+    try {
+      const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
+      const response = await fetch(proxyUrl);
+      if (!response.ok) throw new Error('No se pudo descargar la imagen');
+      const blob = await response.blob();
+
+      // Cargar la imagen en un canvas para garantizar formato PNG (compatible con clipboard)
+      const objUrl = URL.createObjectURL(blob);
+      const img = new window.Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('No se pudo cargar la imagen'));
+        img.src = objUrl;
+      });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('No se pudo obtener el contexto del canvas');
+      ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(objUrl);
+
+      const pngBlob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob((b) => resolve(b), 'image/png')
+      );
+      if (!pngBlob) throw new Error('No se pudo generar el PNG');
+
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': pngBlob })
+      ]);
+
+      setCopyOk(true);
+      setTimeout(() => setCopyOk(false), 2200);
+    } catch (error) {
+      console.error('Error copiando imagen:', error);
+      alert('No se pudo copiar la imagen al portapapeles. Tu navegador puede no soportar esta función.');
+    } finally {
+      setCopying(false);
+    }
+  };
+
+  // Navegación con teclado dentro del lightbox
+  useEffect(() => {
+    if (!lightbox) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightbox(null);
+      else if (e.key === 'ArrowRight') handleLightboxNav('next');
+      else if (e.key === 'ArrowLeft') handleLightboxNav('prev');
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lightbox]);
 
   if (loading) {
     return <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando colecciones del cliente...</div>;
@@ -541,10 +624,30 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
                   </div>
                 ) : (
                   <div className={styles.grid}>
-                    {col.photos.map((photo) => (
-                      <div key={photo.id} className={styles.imageWrapper}>
+                    {col.photos.map((photo, idx) => (
+                      <div
+                        key={photo.id}
+                        className={styles.imageWrapper}
+                        onClick={() => setLightbox({ collectionId: col.id, index: idx })}
+                        style={{ cursor: 'zoom-in' }}
+                        title="Click para ver completa"
+                      >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={photo.url} alt={photo.filename} className={styles.image} loading="lazy" />
+                        <span style={{
+                          position: 'absolute',
+                          top: '0.4rem',
+                          left: '0.4rem',
+                          backgroundColor: 'rgba(0,0,0,0.6)',
+                          color: 'white',
+                          fontSize: '0.7rem',
+                          fontWeight: 600,
+                          padding: '0.15rem 0.45rem',
+                          borderRadius: '999px',
+                          backdropFilter: 'blur(2px)',
+                        }}>
+                          {String(idx + 1).padStart(String(col.photos.length).length, '0')}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -554,6 +657,162 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
           </div>
         )}
       </div>
+
+      {/* ── LIGHTBOX ── */}
+      {lightbox && lightboxPhoto && lightboxCollection && (
+        <div
+          onClick={() => setLightbox(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.94)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+            backdropFilter: 'blur(4px)',
+          }}
+        >
+          {/* Imagen */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightboxPhoto.url}
+            alt={lightboxPhoto.filename}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '92vw',
+              maxHeight: '88vh',
+              objectFit: 'contain',
+              borderRadius: '6px',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+              userSelect: 'none',
+            }}
+          />
+
+          {/* Toolbar superior derecha */}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'fixed',
+              top: '1rem',
+              right: '1rem',
+              display: 'flex',
+              gap: '0.5rem',
+              zIndex: 1001,
+            }}
+          >
+            <button
+              onClick={() => handleCopyImage(lightboxPhoto.url)}
+              disabled={copying}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                padding: '0.55rem 1rem', borderRadius: 'var(--radius)',
+                backgroundColor: copyOk ? 'rgba(34,197,94,0.95)' : 'rgba(255,255,255,0.95)',
+                color: copyOk ? 'white' : '#111',
+                border: 'none', fontWeight: 600,
+                cursor: copying ? 'not-allowed' : 'pointer', fontSize: '0.875rem',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                transition: 'all 0.2s',
+                opacity: copying ? 0.7 : 1,
+              }}
+              title="Copiar imagen al portapapeles (para pegar en Canva, etc.)"
+            >
+              {copyOk ? <><Check size={15} /> Copiada</> : copying ? 'Copiando...' : <><Copy size={15} /> Copiar imagen</>}
+            </button>
+            <button
+              onClick={() => setLightbox(null)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                width: '40px', height: '40px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(255,255,255,0.15)',
+                color: 'white',
+                border: 'none', cursor: 'pointer',
+                backdropFilter: 'blur(4px)',
+              }}
+              title="Cerrar (Esc)"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* Info inferior centrada */}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'fixed',
+              bottom: '1rem',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              backgroundColor: 'rgba(0,0,0,0.55)',
+              color: 'white',
+              padding: '0.5rem 1rem',
+              borderRadius: '999px',
+              fontSize: '0.8rem',
+              backdropFilter: 'blur(6px)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              maxWidth: '90vw',
+            }}
+          >
+            <span style={{ fontWeight: 700 }}>
+              {lightbox.index + 1} / {lightboxCollection.photos.length}
+            </span>
+            <span style={{ opacity: 0.5 }}>·</span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '50vw' }}>
+              {lightboxPhoto.filename}
+            </span>
+          </div>
+
+          {/* Botones laterales */}
+          {lightboxCollection.photos.length > 1 && (
+            <>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleLightboxNav('prev'); }}
+                style={{
+                  position: 'fixed',
+                  left: '1rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  width: '48px', height: '48px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(255,255,255,0.15)',
+                  color: 'white',
+                  border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  backdropFilter: 'blur(4px)',
+                  zIndex: 1001,
+                }}
+                title="Anterior (←)"
+              >
+                <ChevronLeft size={24} />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleLightboxNav('next'); }}
+                style={{
+                  position: 'fixed',
+                  right: '1rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  width: '48px', height: '48px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(255,255,255,0.15)',
+                  color: 'white',
+                  border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  backdropFilter: 'blur(4px)',
+                  zIndex: 1001,
+                }}
+                title="Siguiente (→)"
+              >
+                <ChevronRight size={24} />
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
