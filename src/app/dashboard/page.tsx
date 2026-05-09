@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { collection, onSnapshot, query, orderBy, setDoc, doc, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, setDoc, doc, Timestamp, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import styles from './page.module.css';
 import { FolderPlus, Folder, AlertTriangle } from 'lucide-react';
@@ -49,12 +49,28 @@ export default function DashboardLibraryPage() {
 
     setIsCreating(true);
     try {
+      // Si el cliente ya tenía un pedido completado, este es un nuevo pedido
+      const userRef = doc(db, 'users', user.uid);
+      const userSnap = await getDoc(userRef);
+      const currentStatus = userSnap.exists() ? userSnap.data().clientStatus : undefined;
+      const isNewOrder = currentStatus === 'done' || currentStatus === 'finalized';
+
       const tempId = Date.now().toString() + '-' + Math.floor(Math.random() * 1000);
-      await setDoc(doc(db, `users/${user.uid}/collections`, tempId), {
+      const collectionData: Record<string, unknown> = {
         name: newCollectionName.trim(),
-        createdAt: Timestamp.now()
-      });
-      
+        createdAt: Timestamp.now(),
+      };
+      if (isNewOrder) {
+        collectionData.isNewOrder = true;
+      }
+
+      await setDoc(doc(db, `users/${user.uid}/collections`, tempId), collectionData);
+
+      // Resetear status del cliente a "Pendiente" si venía de un pedido completado
+      if (isNewOrder) {
+        await updateDoc(userRef, { clientStatus: 'active', hasNewOrder: true });
+      }
+
       setNewCollectionName('');
       router.push(`/dashboard/collection/${tempId}`);
     } catch (error) {

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { collection, onSnapshot, query, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Search, UserCheck, CheckCircle2, Circle, Folder, Archive, Users, PackageCheck } from 'lucide-react';
+import { Search, UserCheck, CheckCircle2, Circle, Folder, Archive, Users, PackageCheck, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 
 interface UserData {
@@ -16,6 +16,7 @@ interface UserData {
   photobookType?: string;
   clientStatus?: 'active' | 'done' | 'finalized';
   hasArchived?: boolean;
+  hasNewOrder?: boolean;
 }
 
 type ClientStatus = 'active' | 'done' | 'finalized';
@@ -176,6 +177,23 @@ export default function AdminDirectory() {
                     gap: '0.25rem',
                   }}>
                     <Archive size={10} /> Archivados
+                  </span>
+                )}
+                {user.hasNewOrder && (
+                  <span style={{
+                    fontSize: '0.7rem',
+                    backgroundColor: '#f59e0b',
+                    color: 'white',
+                    padding: '0.15rem 0.55rem',
+                    borderRadius: '999px',
+                    fontWeight: 700,
+                    letterSpacing: '0.03em',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                    boxShadow: '0 2px 6px rgba(245,158,11,0.4)',
+                  }}>
+                    <Sparkles size={11} /> NUEVO PEDIDO
                   </span>
                 )}
               </h3>

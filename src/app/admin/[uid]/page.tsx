@@ -3,7 +3,7 @@
 import React, { useEffect, useState, use } from 'react';
 import { doc, getDoc, collection, getDocs, query, orderBy, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { DownloadCloud, ArrowLeft, Image as ImageIcon, Folder, Trash2, Archive, ArchiveRestore, Eye, EyeOff, Pencil, Save, X, Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { DownloadCloud, ArrowLeft, Image as ImageIcon, Folder, Trash2, Archive, ArchiveRestore, Eye, EyeOff, Pencil, Save, X, Copy, Check, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
@@ -28,6 +28,7 @@ interface CollectionData {
   name: string;
   photos: PhotoData[];
   archived?: boolean;
+  isNewOrder?: boolean;
 }
 
 export default function ClientDetail({ params }: { params: Promise<{ uid: string }> }) {
@@ -59,6 +60,10 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           setClient(docSnap.data() as UserData);
+          // Limpiar el flag global de "nuevo pedido" — el admin ya está viendo el detalle
+          if (docSnap.data().hasNewOrder) {
+            await updateDoc(docRef, { hasNewOrder: false });
+          }
         }
 
         const q = query(collection(db, `users/${uid}/collections`), orderBy('createdAt', 'desc'));
@@ -92,6 +97,7 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
             name: d.data().name || 'Unnamed',
             photos: pList,
             archived: d.data().archived || false,
+            isNewOrder: d.data().isNewOrder || false,
           });
         }
 
@@ -240,6 +246,17 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
       alert("Error al guardar los cambios.");
     } finally {
       setSavingEdit(false);
+    }
+  };
+
+  const handleDismissNewOrder = async (col: CollectionData) => {
+    try {
+      await updateDoc(doc(db, `users/${uid}/collections`, col.id), { isNewOrder: false });
+      setCollections(prev =>
+        prev.map(c => c.id === col.id ? { ...c, isNewOrder: false } : c)
+      );
+    } catch (error) {
+      console.error("Error descartando indicador de nuevo pedido:", error);
     }
   };
 
@@ -517,9 +534,54 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
                 backgroundColor: 'var(--surface)',
                 padding: '2rem',
                 borderRadius: 'var(--radius)',
-                border: `1px solid ${col.archived ? 'var(--text-muted)' : 'var(--border)'}`,
+                border: col.isNewOrder
+                  ? '2px solid #f59e0b'
+                  : `1px solid ${col.archived ? 'var(--text-muted)' : 'var(--border)'}`,
                 opacity: col.archived ? 0.75 : 1,
+                boxShadow: col.isNewOrder ? '0 0 0 4px rgba(245,158,11,0.12)' : undefined,
+                position: 'relative',
               }}>
+                {col.isNewOrder && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '-12px',
+                    left: '1.5rem',
+                    backgroundColor: '#f59e0b',
+                    color: 'white',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.05em',
+                    padding: '0.25rem 0.7rem 0.25rem 0.6rem',
+                    borderRadius: '999px',
+                    boxShadow: '0 2px 8px rgba(245,158,11,0.4)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                  }}>
+                    <Sparkles size={12} />
+                    NUEVO PEDIDO
+                    <button
+                      onClick={() => handleDismissNewOrder(col)}
+                      title="Descartar este indicador"
+                      style={{
+                        background: 'rgba(255,255,255,0.25)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '16px',
+                        height: '16px',
+                        marginLeft: '0.2rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        padding: 0,
+                      }}
+                    >
+                      <X size={11} />
+                    </button>
+                  </div>
+                )}
                 <div style={{
                   display: 'flex',
                   justifyContent: 'space-between',
