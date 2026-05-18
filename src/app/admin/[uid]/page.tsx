@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useEffect, useState, use } from 'react';
+import React, { useEffect, useState, useRef, use } from 'react';
 import { doc, getDoc, collection, getDocs, query, orderBy, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { DownloadCloud, ArrowLeft, Image as ImageIcon, Folder, Trash2, Archive, ArchiveRestore, Eye, EyeOff, Pencil, Save, X, Copy, Check, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { DownloadCloud, ArrowLeft, Image as ImageIcon, Folder, Trash2, Archive, ArchiveRestore, Eye, EyeOff, Pencil, Save, X, Copy, Check, ChevronLeft, ChevronRight, Sparkles, StickyNote, Lock } from 'lucide-react';
 import Link from 'next/link';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
@@ -29,6 +29,7 @@ interface CollectionData {
   photos: PhotoData[];
   archived?: boolean;
   isNewOrder?: boolean;
+  adminNotes?: string;
 }
 
 export default function ClientDetail({ params }: { params: Promise<{ uid: string }> }) {
@@ -52,6 +53,11 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
   const [lightbox, setLightbox] = useState<{ collectionId: string; index: number } | null>(null);
   const [copying, setCopying] = useState(false);
   const [copyOk, setCopyOk] = useState(false);
+
+  // Notas internas del admin
+  const [notesDraft, setNotesDraft] = useState<Record<string, string>>({});
+  const [notesStatus, setNotesStatus] = useState<Record<string, 'idle' | 'saving' | 'saved'>>({});
+  const notesTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   useEffect(() => {
     const fetchData = async () => {
@@ -98,6 +104,7 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
             photos: pList,
             archived: d.data().archived || false,
             isNewOrder: d.data().isNewOrder || false,
+            adminNotes: d.data().adminNotes || '',
           });
         }
 
@@ -247,6 +254,38 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
     } finally {
       setSavingEdit(false);
     }
+  };
+
+  const saveAdminNotes = async (colId: string, value: string) => {
+    setNotesStatus(prev => ({ ...prev, [colId]: 'saving' }));
+    try {
+      await updateDoc(doc(db, `users/${uid}/collections`, colId), { adminNotes: value });
+
+      const updatedCollections = collections.map(c => c.id === colId ? { ...c, adminNotes: value } : c);
+      setCollections(updatedCollections);
+
+      // Actualizar flag global hasAdminNotes en el documento del usuario
+      const hasAnyNotes = updatedCollections.some(c => !!(c.adminNotes && c.adminNotes.trim()));
+      await updateDoc(doc(db, 'users', uid), { hasAdminNotes: hasAnyNotes });
+
+      setNotesStatus(prev => ({ ...prev, [colId]: 'saved' }));
+      setTimeout(() => {
+        setNotesStatus(prev => ({ ...prev, [colId]: 'idle' }));
+      }, 1800);
+    } catch (error) {
+      console.error('Error guardando notas:', error);
+      setNotesStatus(prev => ({ ...prev, [colId]: 'idle' }));
+    }
+  };
+
+  const handleNotesChange = (colId: string, value: string) => {
+    setNotesDraft(prev => ({ ...prev, [colId]: value }));
+    setNotesStatus(prev => ({ ...prev, [colId]: 'saving' }));
+
+    if (notesTimers.current[colId]) clearTimeout(notesTimers.current[colId]);
+    notesTimers.current[colId] = setTimeout(() => {
+      saveAdminNotes(colId, value);
+    }, 900);
   };
 
   const handleDismissNewOrder = async (col: CollectionData) => {
@@ -677,6 +716,84 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
                       Eliminar
                     </button>
                   </div>
+                </div>
+
+                {/* ── NOTAS INTERNAS (solo admin) ── */}
+                <div style={{
+                  marginBottom: '1.5rem',
+                  backgroundColor: 'rgba(245,158,11,0.05)',
+                  border: '1px dashed rgba(245,158,11,0.4)',
+                  borderRadius: 'var(--radius)',
+                  padding: '0.85rem 1rem',
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.5rem',
+                    marginBottom: '0.5rem',
+                  }}>
+                    <label style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      color: '#b45309',
+                      letterSpacing: '0.04em',
+                      textTransform: 'uppercase',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                    }}>
+                      <StickyNote size={13} /> Notas internas
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.2rem',
+                        fontSize: '0.65rem',
+                        backgroundColor: 'rgba(245,158,11,0.18)',
+                        padding: '0.05rem 0.4rem',
+                        borderRadius: '999px',
+                        marginLeft: '0.3rem',
+                        textTransform: 'none',
+                        letterSpacing: 0,
+                        fontWeight: 600,
+                      }}>
+                        <Lock size={9} /> solo admin
+                      </span>
+                    </label>
+
+                    {notesStatus[col.id] === 'saving' && (
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                        Guardando...
+                      </span>
+                    )}
+                    {notesStatus[col.id] === 'saved' && (
+                      <span style={{ fontSize: '0.7rem', color: '#16a34a', display: 'inline-flex', alignItems: 'center', gap: '0.2rem', fontWeight: 600 }}>
+                        <Check size={11} /> Guardado
+                      </span>
+                    )}
+                  </div>
+
+                  <textarea
+                    value={notesDraft[col.id] ?? col.adminNotes ?? ''}
+                    onChange={(e) => handleNotesChange(col.id, e.target.value)}
+                    placeholder="Escribí acá tus notas sobre este pedido — el cliente no las verá."
+                    rows={3}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.75rem',
+                      borderRadius: 'calc(var(--radius) - 0.2rem)',
+                      border: '1px solid rgba(245,158,11,0.25)',
+                      backgroundColor: 'var(--background)',
+                      color: 'var(--foreground)',
+                      fontFamily: 'inherit',
+                      fontSize: '0.875rem',
+                      resize: 'vertical',
+                      outline: 'none',
+                      lineHeight: 1.45,
+                    }}
+                    onFocus={(e) => e.target.style.borderColor = '#f59e0b'}
+                    onBlur={(e) => e.target.style.borderColor = 'rgba(245,158,11,0.25)'}
+                  />
                 </div>
 
                 {col.photos.length === 0 ? (

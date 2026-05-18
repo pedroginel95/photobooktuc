@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { collection, onSnapshot, query, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Search, UserCheck, CheckCircle2, Circle, Folder, Archive, Users, PackageCheck, Sparkles } from 'lucide-react';
+import { Search, UserCheck, CheckCircle2, Circle, Folder, Archive, Users, PackageCheck, Sparkles, StickyNote } from 'lucide-react';
 import Link from 'next/link';
 
 interface UserData {
@@ -17,6 +17,7 @@ interface UserData {
   clientStatus?: 'active' | 'done' | 'finalized';
   hasArchived?: boolean;
   hasNewOrder?: boolean;
+  hasAdminNotes?: boolean;
 }
 
 type ClientStatus = 'active' | 'done' | 'finalized';
@@ -194,6 +195,24 @@ export default function AdminDirectory() {
                     boxShadow: '0 2px 6px rgba(245,158,11,0.4)',
                   }}>
                     <Sparkles size={11} /> NUEVO PEDIDO
+                  </span>
+                )}
+                {user.hasAdminNotes && (
+                  <span style={{
+                    fontSize: '0.7rem',
+                    backgroundColor: 'rgba(245,158,11,0.12)',
+                    color: '#b45309',
+                    padding: '0.1rem 0.5rem',
+                    borderRadius: '999px',
+                    fontWeight: 600,
+                    border: '1px solid rgba(245,158,11,0.3)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                  }}
+                  title="Este cliente tiene notas internas"
+                  >
+                    <StickyNote size={10} /> Notas
                   </span>
                 )}
               </h3>
