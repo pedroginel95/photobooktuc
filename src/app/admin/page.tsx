@@ -18,7 +18,8 @@ interface UserData {
   hasArchived?: boolean;
   hasNewOrder?: boolean;
   hasAdminNotes?: boolean;
-  aggregatedAdminNotes?: string;
+  adminNotes?: string;
+  aggregatedAdminNotes?: string; // legacy
 }
 
 type ClientStatus = 'active' | 'done' | 'finalized';
@@ -204,35 +205,39 @@ export default function AdminDirectory() {
                 <span>{user.email}</span>
               </div>
 
-              {user.aggregatedAdminNotes && user.aggregatedAdminNotes.trim() && (
-                <div style={{
-                  marginTop: '0.75rem',
-                  padding: '0.65rem 0.8rem',
-                  backgroundColor: 'rgba(245,158,11,0.08)',
-                  border: '1px solid rgba(245,158,11,0.3)',
-                  borderRadius: 'calc(var(--radius) - 0.2rem)',
-                  fontSize: '0.78rem',
-                  color: '#78350f',
-                  whiteSpace: 'pre-wrap',
-                  lineHeight: 1.5,
-                  position: 'relative',
-                }}>
+              {(() => {
+                const noteText = (user.adminNotes ?? user.aggregatedAdminNotes ?? '').trim();
+                if (!noteText) return null;
+                return (
                   <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.3rem',
-                    fontWeight: 700,
-                    fontSize: '0.65rem',
-                    color: '#b45309',
-                    marginBottom: '0.35rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
+                    marginTop: '0.75rem',
+                    padding: '0.65rem 0.8rem',
+                    backgroundColor: 'rgba(245,158,11,0.08)',
+                    border: '1px solid rgba(245,158,11,0.3)',
+                    borderRadius: 'calc(var(--radius) - 0.2rem)',
+                    fontSize: '0.78rem',
+                    color: '#78350f',
+                    whiteSpace: 'pre-wrap',
+                    lineHeight: 1.5,
+                    position: 'relative',
                   }}>
-                    <StickyNote size={11} /> Notas internas
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      fontWeight: 700,
+                      fontSize: '0.65rem',
+                      color: '#b45309',
+                      marginBottom: '0.35rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                    }}>
+                      <StickyNote size={11} /> Notas internas
+                    </div>
+                    {noteText}
                   </div>
-                  {user.aggregatedAdminNotes}
-                </div>
-              )}
+                );
+              })()}
             </div>
 
             {/* Dropdown de estado */}
