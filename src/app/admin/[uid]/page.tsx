@@ -109,6 +109,23 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
         }
 
         setCollections(cols);
+
+        // Migración: regenerar aggregatedAdminNotes en caso de colecciones que
+        // ya tenían adminNotes antes de existir este campo en el doc del usuario.
+        const notesWithContent = cols.filter(c => c.adminNotes && c.adminNotes.trim());
+        if (notesWithContent.length > 0) {
+          const aggregated = notesWithContent
+            .map(c => `📁 ${c.name}:\n${c.adminNotes!.trim()}`)
+            .join('\n\n');
+          // Solo actualizar si el agregado actual no coincide
+          const currentAggregated = (docSnap.exists() && docSnap.data().aggregatedAdminNotes) || '';
+          if (currentAggregated !== aggregated) {
+            await updateDoc(doc(db, 'users', uid), {
+              hasAdminNotes: true,
+              aggregatedAdminNotes: aggregated,
+            });
+          }
+        }
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {
@@ -264,9 +281,16 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
       const updatedCollections = collections.map(c => c.id === colId ? { ...c, adminNotes: value } : c);
       setCollections(updatedCollections);
 
-      // Actualizar flag global hasAdminNotes en el documento del usuario
-      const hasAnyNotes = updatedCollections.some(c => !!(c.adminNotes && c.adminNotes.trim()));
-      await updateDoc(doc(db, 'users', uid), { hasAdminNotes: hasAnyNotes });
+      // Generar versión agregada para mostrar en el directorio
+      const notesWithContent = updatedCollections.filter(c => c.adminNotes && c.adminNotes.trim());
+      const aggregated = notesWithContent
+        .map(c => `📁 ${c.name}:\n${c.adminNotes!.trim()}`)
+        .join('\n\n');
+
+      await updateDoc(doc(db, 'users', uid), {
+        hasAdminNotes: notesWithContent.length > 0,
+        aggregatedAdminNotes: aggregated,
+      });
 
       setNotesStatus(prev => ({ ...prev, [colId]: 'saved' }));
       setTimeout(() => {
