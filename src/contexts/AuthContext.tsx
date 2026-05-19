@@ -11,6 +11,7 @@ interface UserProfile {
   whatsapp: string;
   email: string;
   isAdmin?: boolean;
+  isImprenta?: boolean;
 }
 
 interface AuthContextType {

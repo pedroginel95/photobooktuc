@@ -103,19 +103,21 @@ export default function AuthForm() {
 
             <div className={styles.inputGroup}>
               <label className={styles.label}>
-                Tipo de Foto Libro <span className={styles.required}>*</span>
+                Producto elegido <span className={styles.required}>*</span>
               </label>
-              <p className={styles.fieldHint}>Seleccioná el modelo que encargaste</p>
+              <p className={styles.fieldHint}>Seleccioná el producto que encargaste</p>
               <div className={styles.optionGrid}>
                 {[
-                  { value: 'A4 Tapa Dura',   size: 'A4', cover: 'Tapa Dura' },
-                  { value: 'A5 Tapa Dura',   size: 'A5', cover: 'Tapa Dura' },
-                  { value: 'A4 Tapa Blanda', size: 'A4', cover: 'Tapa Blanda' },
-                  { value: 'A5 Tapa Blanda', size: 'A5', cover: 'Tapa Blanda' },
+                  { value: 'A4 Tapa Dura',   size: 'A4',     cover: 'Tapa Dura',   wide: false },
+                  { value: 'A5 Tapa Dura',   size: 'A5',     cover: 'Tapa Dura',   wide: false },
+                  { value: 'A4 Tapa Blanda', size: 'A4',     cover: 'Tapa Blanda', wide: false },
+                  { value: 'A5 Tapa Blanda', size: 'A5',     cover: 'Tapa Blanda', wide: false },
+                  { value: 'Cuadro 30x40',   size: 'Cuadro', cover: '30x40',       wide: true  },
                 ].map((opt) => (
                   <label
                     key={opt.value}
                     className={`${styles.optionCard} ${photobookType === opt.value ? styles.optionCardSelected : ''}`}
+                    style={opt.wide ? { gridColumn: '1 / -1' } : undefined}
                   >
                     <input
                       type="radio"

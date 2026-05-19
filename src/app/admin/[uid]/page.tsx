@@ -17,6 +17,7 @@ interface UserData {
   photobookType?: string;
   adminNotes?: string;
   aggregatedAdminNotes?: string; // legacy
+  isImprenta?: boolean;
 }
 
 interface PhotoData {
@@ -229,6 +230,7 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
       whatsapp: client.whatsapp || '',
       email: client.email || '',
       photobookType: client.photobookType || '',
+      isImprenta: client.isImprenta || false,
     });
     setIsEditing(true);
   };
@@ -246,6 +248,7 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
         whatsapp: editForm.whatsapp.trim(),
         email: editForm.email.trim(),
         photobookType: editForm.photobookType || '',
+        isImprenta: !!editForm.isImprenta,
       });
       setClient({
         ...client!,
@@ -254,6 +257,7 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
         whatsapp: editForm.whatsapp.trim(),
         email: editForm.email.trim(),
         photobookType: editForm.photobookType || '',
+        isImprenta: !!editForm.isImprenta,
       });
       setIsEditing(false);
     } catch (error) {
@@ -444,7 +448,7 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
                 </div>
 
                 <div style={{ marginBottom: '1rem' }}>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.3rem' }}>Tipo de Foto Libro</label>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.3rem' }}>Producto elegido</label>
                   <select
                     value={editForm.photobookType || ''}
                     onChange={(e) => setEditForm({ ...editForm, photobookType: e.target.value })}
@@ -455,7 +459,33 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
                     <option value="A5 Tapa Dura">A5 Tapa Dura</option>
                     <option value="A4 Tapa Blanda">A4 Tapa Blanda</option>
                     <option value="A5 Tapa Blanda">A5 Tapa Blanda</option>
+                    <option value="Cuadro 30x40">Cuadro 30x40</option>
                   </select>
+                </div>
+
+                <div style={{
+                  marginBottom: '1rem',
+                  padding: '0.75rem 1rem',
+                  backgroundColor: 'rgba(99,102,241,0.06)',
+                  border: '1px solid rgba(99,102,241,0.25)',
+                  borderRadius: 'var(--radius)',
+                }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={!!editForm.isImprenta}
+                      onChange={(e) => setEditForm({ ...editForm, isImprenta: e.target.checked })}
+                      style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#6366f1' }}
+                    />
+                    <span style={{ flex: 1 }}>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#4338ca', display: 'block' }}>
+                        Asignar rol Imprenta
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        Este usuario podrá acceder al Panel Imprenta y gestionar trabajos de impresión.
+                      </span>
+                    </span>
+                  </label>
                 </div>
 
                 <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
@@ -506,6 +536,20 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
                       whiteSpace: 'nowrap',
                     }}>
                       📖 {client.photobookType}
+                    </span>
+                  )}
+                  {client.isImprenta && (
+                    <span style={{
+                      fontSize: '0.85rem',
+                      backgroundColor: 'rgba(99,102,241,0.12)',
+                      color: '#4338ca',
+                      padding: '0.3rem 0.75rem',
+                      borderRadius: '999px',
+                      fontWeight: 700,
+                      border: '1px solid rgba(99,102,241,0.35)',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      🖨️ Imprenta
                     </span>
                   )}
                   <button

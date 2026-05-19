@@ -23,6 +23,8 @@ export default function DashboardLayout({
         router.push('/');
       } else if (profile?.isAdmin) {
         router.push('/admin');
+      } else if (profile?.isImprenta) {
+        router.push('/imprenta');
       }
     }
   }, [user, profile, loading, router]);
