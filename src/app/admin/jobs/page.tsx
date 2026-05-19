@@ -21,6 +21,7 @@ interface PrintJob {
   pdfFilename: string;
   pdfStoragePath?: string;
   status: 'pending' | 'done' | 'paid';
+  paidDesigner?: boolean;
   createdAt?: { seconds: number };
 }
 
@@ -179,6 +180,14 @@ export default function AdminJobsPanel() {
       await updateDoc(doc(db, 'printJobs', jobId), { status: newStatus });
     } catch (err) {
       console.error('Error actualizando estado:', err);
+    }
+  };
+
+  const handleTogglePaidDesigner = async (jobId: string, current: boolean) => {
+    try {
+      await updateDoc(doc(db, 'printJobs', jobId), { paidDesigner: !current });
+    } catch (err) {
+      console.error('Error actualizando pago al diseñador:', err);
     }
   };
 
@@ -451,6 +460,52 @@ export default function AdminJobsPanel() {
                           <option value="paid">💵 Cobrado</option>
                         </select>
                       </div>
+
+                      {/* Pagado a diseñador (solo admin) */}
+                      <label
+                        style={{
+                          marginTop: '0.7rem',
+                          paddingTop: '0.7rem',
+                          borderTop: '1px dashed var(--border)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          cursor: 'pointer',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          color: job.paidDesigner ? '#15803d' : 'var(--text-muted)',
+                          userSelect: 'none',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={!!job.paidDesigner}
+                          onChange={() => handleTogglePaidDesigner(job.id, !!job.paidDesigner)}
+                          style={{
+                            width: '16px',
+                            height: '16px',
+                            cursor: 'pointer',
+                            accentColor: '#16a34a',
+                          }}
+                        />
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                          💰 Pagado a diseñador
+                          {job.paidDesigner && (
+                            <span style={{
+                              fontSize: '0.65rem',
+                              backgroundColor: 'rgba(34,197,94,0.15)',
+                              color: '#15803d',
+                              padding: '0.1rem 0.45rem',
+                              borderRadius: '999px',
+                              fontWeight: 700,
+                              letterSpacing: '0.03em',
+                              border: '1px solid rgba(34,197,94,0.35)',
+                            }}>
+                              ✓ PAGADO
+                            </span>
+                          )}
+                        </span>
+                      </label>
                     </div>
                   ))}
                 </div>
