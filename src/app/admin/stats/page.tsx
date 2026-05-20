@@ -23,6 +23,9 @@ interface SaleRecord {
   photosCount: number;
   booksCount: number;
   status: SaleStatus;
+  priceOverride?: number;   // precio forzado (total) — por descuentos
+  costOverride?: number;    // costo forzado (total)
+  designerPaid?: boolean;   // control: ¿se le pagó al diseñador?
   userId?: string;
   linkedClientId?: string;
   linkedCollectionId?: string; // legacy (modelo anterior por colección)
@@ -70,8 +73,12 @@ function getConfig(productType: string): ProductConfig {
 function calcRecord(r: SaleRecord) {
   const cfg = getConfig(r.productType);
   const books = r.booksCount || 1;
-  const facturado = cfg.price * books;
-  const costos = (cfg.printCost + cfg.designerCost) * books;
+  const facturado = (r.priceOverride !== undefined && r.priceOverride !== null)
+    ? r.priceOverride
+    : cfg.price * books;
+  const costos = (r.costOverride !== undefined && r.costOverride !== null)
+    ? r.costOverride
+    : (cfg.printCost + cfg.designerCost) * books;
   const ganancia = facturado - costos;
   return { facturado, costos, ganancia };
 }
@@ -299,7 +306,11 @@ export default function StatsPanel() {
     }
   };
 
-  const handleUpdateField = async (id: string, field: 'booksCount' | 'status', value: number | string) => {
+  const handleUpdateField = async (
+    id: string,
+    field: 'booksCount' | 'status' | 'productType' | 'priceOverride' | 'costOverride' | 'designerPaid',
+    value: number | string | boolean
+  ) => {
     try {
       await updateDoc(doc(db, 'salesRecords', id), { [field]: value });
     } catch (err) {
@@ -504,7 +515,7 @@ export default function StatsPanel() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem', minWidth: '900px' }}>
             <thead>
               <tr style={{ backgroundColor: 'var(--surface)', textAlign: 'left' }}>
-                {['Fecha', 'Cliente', 'Producto', 'Colecciones', 'Fotos', 'Libros', 'Facturado', 'Costos', 'Ganancia', 'Estado', ''].map((h) => (
+                {['Fecha', 'Cliente', 'Producto', 'Colecciones', 'Fotos', 'Libros', 'Facturado', 'Costos', 'Ganancia', 'Estado', 'Dis. pagado', ''].map((h) => (
                   <th key={h} style={{ padding: '0.7rem 0.8rem', fontWeight: 700, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -518,7 +529,16 @@ export default function StatsPanel() {
                   <tr key={r.id} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '0.6rem 0.8rem', whiteSpace: 'nowrap' }}>{toDateInputValue(d).split('-').reverse().join('/')}</td>
                     <td style={{ padding: '0.6rem 0.8rem', fontWeight: 600 }}>{r.clientName}</td>
-                    <td style={{ padding: '0.6rem 0.8rem', whiteSpace: 'nowrap' }}>{r.productType}</td>
+                    <td style={{ padding: '0.6rem 0.8rem' }}>
+                      <select
+                        value={r.productType || ''}
+                        onChange={(e) => handleUpdateField(r.id, 'productType', e.target.value)}
+                        style={{ padding: '0.25rem 0.4rem', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)', fontSize: '0.78rem', cursor: 'pointer', maxWidth: '140px' }}
+                      >
+                        <option value="">—</option>
+                        {PRODUCT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </td>
                     <td style={{ padding: '0.6rem 0.8rem', textAlign: 'center' }}>{r.collectionsCount}</td>
                     <td style={{ padding: '0.6rem 0.8rem', textAlign: 'center' }}>{r.photosCount}</td>
                     <td style={{ padding: '0.6rem 0.8rem', textAlign: 'center' }}>
@@ -530,8 +550,32 @@ export default function StatsPanel() {
                         style={{ width: '50px', padding: '0.25rem', textAlign: 'center', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
                       />
                     </td>
-                    <td style={{ padding: '0.6rem 0.8rem', whiteSpace: 'nowrap' }}>{fmt(c.facturado)}</td>
-                    <td style={{ padding: '0.6rem 0.8rem', whiteSpace: 'nowrap', color: '#ef4444' }}>{fmt(c.costos)}</td>
+                    <td style={{ padding: '0.6rem 0.8rem', whiteSpace: 'nowrap' }}>
+                      <input
+                        type="number"
+                        key={`price-${r.id}-${r.productType}-${r.booksCount}-${r.priceOverride ?? ''}`}
+                        defaultValue={c.facturado}
+                        onBlur={(e) => {
+                          const v = Number(e.target.value);
+                          if (!isNaN(v) && v !== c.facturado) handleUpdateField(r.id, 'priceOverride', v);
+                        }}
+                        title="Editá para forzar el precio (ej. descuento)"
+                        style={{ width: '92px', padding: '0.25rem 0.4rem', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                      />
+                    </td>
+                    <td style={{ padding: '0.6rem 0.8rem', whiteSpace: 'nowrap' }}>
+                      <input
+                        type="number"
+                        key={`cost-${r.id}-${r.productType}-${r.booksCount}-${r.costOverride ?? ''}`}
+                        defaultValue={c.costos}
+                        onBlur={(e) => {
+                          const v = Number(e.target.value);
+                          if (!isNaN(v) && v !== c.costos) handleUpdateField(r.id, 'costOverride', v);
+                        }}
+                        title="Editá para forzar el costo"
+                        style={{ width: '92px', padding: '0.25rem 0.4rem', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: '#ef4444' }}
+                      />
+                    </td>
                     <td style={{ padding: '0.6rem 0.8rem', whiteSpace: 'nowrap', fontWeight: 700, color: '#16a34a' }}>{fmt(c.ganancia)}</td>
                     <td style={{ padding: '0.6rem 0.8rem' }}>
                       <select
@@ -543,6 +587,15 @@ export default function StatsPanel() {
                         <option value="done">Realizado</option>
                         <option value="finalized">Finalizado</option>
                       </select>
+                    </td>
+                    <td style={{ padding: '0.6rem 0.8rem', textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={!!r.designerPaid}
+                        onChange={(e) => handleUpdateField(r.id, 'designerPaid', e.target.checked)}
+                        title={r.designerPaid ? 'Diseñador pagado' : 'Pendiente de pago al diseñador'}
+                        style={{ width: '17px', height: '17px', cursor: 'pointer', accentColor: '#16a34a' }}
+                      />
                     </td>
                     <td style={{ padding: '0.6rem 0.8rem' }}>
                       <button onClick={() => handleDelete(r)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'inline-flex' }} title="Eliminar registro">
