@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   collection, onSnapshot, query, orderBy,
-  doc, setDoc, updateDoc, deleteDoc, Timestamp, getDocs
+  doc, setDoc, updateDoc, deleteDoc, Timestamp, getDocs, arrayUnion
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
@@ -41,6 +41,10 @@ const PRODUCT_CONFIG: Record<string, ProductConfig> = {
 };
 
 const PRODUCT_TYPES = Object.keys(PRODUCT_CONFIG);
+
+// Documento especial dentro de salesRecords que guarda las colecciones descartadas
+// (para que no se vuelvan a importar al sincronizar). Se filtra de la tabla.
+const DISMISSED_DOC_ID = '__meta_dismissed__';
 
 const STATUS_LABEL: Record<SaleStatus, string> = {
   pending: 'Pendiente',
@@ -109,7 +113,10 @@ export default function StatsPanel() {
       q,
       (snapshot) => {
         const list: SaleRecord[] = [];
-        snapshot.forEach((d) => list.push({ id: d.id, ...d.data() } as SaleRecord));
+        snapshot.forEach((d) => {
+          if (d.id === DISMISSED_DOC_ID) return; // saltar doc de metadatos
+          list.push({ id: d.id, ...d.data() } as SaleRecord);
+        });
         setRecords(list);
         setLoading(false);
       },
@@ -126,7 +133,12 @@ export default function StatsPanel() {
       // IDs de colecciones ya importadas (lectura fresca para evitar duplicados)
       const existingSnap = await getDocs(collection(db, 'salesRecords'));
       const existingIds = new Set<string>();
+      const dismissed = new Set<string>();
       existingSnap.forEach(d => {
+        if (d.id === DISMISSED_DOC_ID) {
+          (d.data().ids || []).forEach((id: string) => dismissed.add(id));
+          return;
+        }
         const lc = d.data().linkedCollectionId;
         if (lc) existingIds.add(lc);
       });
@@ -143,6 +155,7 @@ export default function StatsPanel() {
 
         for (const colDoc of colsSnap.docs) {
           if (existingIds.has(colDoc.id)) continue; // ya importada
+          if (dismissed.has(colDoc.id)) continue;   // descartada manualmente
 
           const colData = colDoc.data();
           // Contar fotos de la colección
@@ -282,6 +295,14 @@ export default function StatsPanel() {
     if (!confirm(`¿Eliminar el registro de "${r.clientName}"?`)) return;
     try {
       await deleteDoc(doc(db, 'salesRecords', r.id));
+      // Si era auto-importado, recordar la colección para que NO vuelva a sincronizarse
+      if (r.linkedCollectionId) {
+        await setDoc(
+          doc(db, 'salesRecords', DISMISSED_DOC_ID),
+          { ids: arrayUnion(r.linkedCollectionId) },
+          { merge: true }
+        );
+      }
     } catch (err) {
       console.error('Error eliminando registro:', err);
     }
