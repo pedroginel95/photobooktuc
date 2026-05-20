@@ -7,9 +7,10 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
+import Link from 'next/link';
 import {
   Briefcase, Plus, FileText, Trash2, ExternalLink,
-  Circle, CheckCircle2, DollarSign, UploadCloud, X, StickyNote
+  Circle, CheckCircle2, DollarSign, UploadCloud, X, StickyNote, ArrowLeft
 } from 'lucide-react';
 
 interface PrintJob {
@@ -21,7 +22,6 @@ interface PrintJob {
   pdfFilename: string;
   pdfStoragePath?: string;
   status: 'pending' | 'done' | 'paid';
-  paidDesigner?: boolean;
   createdAt?: { seconds: number };
 }
 
@@ -183,14 +183,6 @@ export default function AdminJobsPanel() {
     }
   };
 
-  const handleTogglePaidDesigner = async (jobId: string, current: boolean) => {
-    try {
-      await updateDoc(doc(db, 'printJobs', jobId), { paidDesigner: !current });
-    } catch (err) {
-      console.error('Error actualizando pago al diseñador:', err);
-    }
-  };
-
   const grouped: Record<JobStatus, PrintJob[]> = {
     pending: jobs.filter(j => (j.status || 'pending') === 'pending'),
     done:    jobs.filter(j => j.status === 'done'),
@@ -200,6 +192,9 @@ export default function AdminJobsPanel() {
   return (
     <div>
       <div style={{ marginBottom: '2rem' }}>
+        <Link href="/admin" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', marginBottom: '1rem', textDecoration: 'none' }}>
+          <ArrowLeft size={16} /> Volver al Directorio
+        </Link>
         <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <Briefcase size={28} color="#4338ca" /> Gestión de Imprenta
         </h2>
@@ -460,52 +455,6 @@ export default function AdminJobsPanel() {
                           <option value="paid">💵 Cobrado</option>
                         </select>
                       </div>
-
-                      {/* Pagado a diseñador (solo admin) */}
-                      <label
-                        style={{
-                          marginTop: '0.7rem',
-                          paddingTop: '0.7rem',
-                          borderTop: '1px dashed var(--border)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.5rem',
-                          cursor: 'pointer',
-                          fontSize: '0.78rem',
-                          fontWeight: 600,
-                          color: job.paidDesigner ? '#15803d' : 'var(--text-muted)',
-                          userSelect: 'none',
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={!!job.paidDesigner}
-                          onChange={() => handleTogglePaidDesigner(job.id, !!job.paidDesigner)}
-                          style={{
-                            width: '16px',
-                            height: '16px',
-                            cursor: 'pointer',
-                            accentColor: '#16a34a',
-                          }}
-                        />
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                          💰 Pagado a diseñador
-                          {job.paidDesigner && (
-                            <span style={{
-                              fontSize: '0.65rem',
-                              backgroundColor: 'rgba(34,197,94,0.15)',
-                              color: '#15803d',
-                              padding: '0.1rem 0.45rem',
-                              borderRadius: '999px',
-                              fontWeight: 700,
-                              letterSpacing: '0.03em',
-                              border: '1px solid rgba(34,197,94,0.35)',
-                            }}>
-                              ✓ PAGADO
-                            </span>
-                          )}
-                        </span>
-                      </label>
                     </div>
                   ))}
                 </div>

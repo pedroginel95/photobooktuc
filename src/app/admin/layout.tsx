@@ -56,6 +56,9 @@ export default function AdminLayout({
             <Link href="/admin/jobs" style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
               Imprenta
             </Link>
+            <Link href="/admin/stats" style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+              Estadísticas
+            </Link>
           </div>
           <div className={styles.userSection}>
             <span className={styles.greeting}>

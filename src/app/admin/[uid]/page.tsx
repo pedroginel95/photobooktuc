@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef, use } from 'react';
 import { doc, getDoc, collection, getDocs, query, orderBy, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { DownloadCloud, ArrowLeft, Image as ImageIcon, Folder, Trash2, Archive, ArchiveRestore, Eye, EyeOff, Pencil, Save, X, Copy, Check, ChevronLeft, ChevronRight, Sparkles, StickyNote, Lock } from 'lucide-react';
+import { DownloadCloud, ArrowLeft, Image as ImageIcon, Folder, Trash2, Archive, ArchiveRestore, Eye, EyeOff, Pencil, Save, X, Copy, Check, ChevronLeft, ChevronRight, Sparkles, StickyNote, Lock, CheckSquare, Square, DollarSign } from 'lucide-react';
 import Link from 'next/link';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
@@ -32,6 +32,7 @@ interface CollectionData {
   photos: PhotoData[];
   archived?: boolean;
   isNewOrder?: boolean;
+  designerPaid?: boolean;
 }
 
 export default function ClientDetail({ params }: { params: Promise<{ uid: string }> }) {
@@ -114,6 +115,7 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
             photos: pList,
             archived: d.data().archived || false,
             isNewOrder: d.data().isNewOrder || false,
+            designerPaid: d.data().designerPaid || false,
           });
         }
 
@@ -291,6 +293,19 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
     clientNotesTimer.current = setTimeout(() => {
       saveClientNotes(value);
     }, 900);
+  };
+
+  const handleToggleCollectionDesignerPaid = async (col: CollectionData) => {
+    const newValue = !col.designerPaid;
+    // Update optimista
+    setCollections(prev => prev.map(c => c.id === col.id ? { ...c, designerPaid: newValue } : c));
+    try {
+      await updateDoc(doc(db, `users/${uid}/collections`, col.id), { designerPaid: newValue });
+    } catch (error) {
+      console.error('Error actualizando pago al diseñador:', error);
+      setCollections(prev => prev.map(c => c.id === col.id ? { ...c, designerPaid: !newValue } : c));
+      alert('No se pudo actualizar el pago al diseñador.');
+    }
   };
 
   const handleDismissNewOrder = async (col: CollectionData) => {
@@ -813,6 +828,31 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
                     >
                       {col.archived ? <ArchiveRestore size={16} /> : <Archive size={16} />}
                       {col.archived ? 'Desarchivar' : 'Archivar'}
+                    </button>
+
+                    {/* Pagado a diseñador */}
+                    <button
+                      onClick={() => handleToggleCollectionDesignerPaid(col)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        backgroundColor: col.designerPaid ? 'rgba(34,197,94,0.12)' : 'var(--surface)',
+                        color: col.designerPaid ? '#15803d' : 'var(--text-muted)',
+                        border: `1px solid ${col.designerPaid ? 'rgba(34,197,94,0.4)' : 'var(--border)'}`,
+                        padding: '0.5rem 1rem',
+                        borderRadius: 'var(--radius)',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        fontSize: '0.875rem',
+                        transition: 'all 0.2s',
+                      }}
+                      title={col.designerPaid ? 'Click para destildar el pago al diseñador' : 'Click para marcar como pagado al diseñador'}
+                    >
+                      {col.designerPaid
+                        ? <><CheckSquare size={16} /> Diseñador pagado</>
+                        : <><Square size={16} /> Pagar diseñador</>
+                      }
                     </button>
 
                     {/* Eliminar */}
