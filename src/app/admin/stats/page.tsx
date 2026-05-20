@@ -34,7 +34,7 @@ const PRODUCT_CONFIG: Record<string, ProductConfig> = {
   'A5 Tapa Dura':   { price: 35990, printCost: 13000, designerCost: 7000 },
   'A4 Tapa Blanda': { price: 49990, printCost: 23500, designerCost: 7000 },
   'A4 Tapa Dura':   { price: 59990, printCost: 23500, designerCost: 7000 },
-  'Cuadro 30x40':   { price: 0,     printCost: 0,     designerCost: 0 },
+  'Cuadro 30x40':   { price: 24990, printCost: 13000, designerCost: 0 },
 };
 
 const PRODUCT_TYPES = Object.keys(PRODUCT_CONFIG);
