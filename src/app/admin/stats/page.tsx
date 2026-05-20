@@ -1,15 +1,15 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   collection, onSnapshot, query, orderBy,
-  doc, setDoc, updateDoc, deleteDoc, Timestamp
+  doc, setDoc, updateDoc, deleteDoc, Timestamp, getDocs
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
   BarChart3, ArrowLeft, Plus, X, Trash2, TrendingUp,
-  DollarSign, Wallet, BookOpen, Calendar
+  DollarSign, Wallet, BookOpen, Calendar, RefreshCw
 } from 'lucide-react';
 
 type SaleStatus = 'pending' | 'done' | 'finalized';
@@ -23,6 +23,9 @@ interface SaleRecord {
   photosCount: number;
   booksCount: number;
   status: SaleStatus;
+  userId?: string;
+  linkedCollectionId?: string;
+  source?: 'auto' | 'manual';
   createdAt?: { seconds: number };
 }
 
@@ -76,6 +79,9 @@ function toDateInputValue(d: Date) {
 export default function StatsPanel() {
   const [records, setRecords] = useState<SaleRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState('');
+  const syncedOnce = useRef(false);
 
   // Filtros
   const today = new Date();
@@ -111,6 +117,79 @@ export default function StatsPanel() {
     );
     return () => unsubscribe();
   }, []);
+
+  // ── Sincronización con colecciones de clientes ──
+  const syncCollections = async (silent = false) => {
+    setSyncing(true);
+    if (!silent) setSyncMsg('Sincronizando...');
+    try {
+      // IDs de colecciones ya importadas (lectura fresca para evitar duplicados)
+      const existingSnap = await getDocs(collection(db, 'salesRecords'));
+      const existingIds = new Set<string>();
+      existingSnap.forEach(d => {
+        const lc = d.data().linkedCollectionId;
+        if (lc) existingIds.add(lc);
+      });
+
+      const usersSnap = await getDocs(collection(db, 'users'));
+      let created = 0;
+
+      for (const userDoc of usersSnap.docs) {
+        const u = userDoc.data();
+        // Saltar cuentas de admin e imprenta (no son clientes)
+        if (u.isAdmin || u.isImprenta) continue;
+
+        const colsSnap = await getDocs(collection(db, `users/${userDoc.id}/collections`));
+
+        for (const colDoc of colsSnap.docs) {
+          if (existingIds.has(colDoc.id)) continue; // ya importada
+
+          const colData = colDoc.data();
+          // Contar fotos de la colección
+          const photosSnap = await getDocs(collection(db, `users/${userDoc.id}/collections/${colDoc.id}/photos`));
+
+          const recordId = `auto-${colDoc.id}`;
+          await setDoc(doc(db, 'salesRecords', recordId), {
+            date: colData.createdAt || Timestamp.now(),
+            clientName: `${u.name || ''} ${u.lastName || ''}`.trim() || u.email || 'Cliente',
+            productType: u.photobookType || '',
+            collectionsCount: 1,
+            photosCount: photosSnap.size,
+            booksCount: 1,
+            status: 'pending',
+            userId: userDoc.id,
+            linkedCollectionId: colDoc.id,
+            source: 'auto',
+            createdAt: Timestamp.now(),
+          });
+          created++;
+          existingIds.add(colDoc.id);
+        }
+      }
+
+      if (!silent) {
+        setSyncMsg(created > 0 ? `✓ ${created} colección(es) importada(s)` : '✓ Todo al día');
+        setTimeout(() => setSyncMsg(''), 3500);
+      }
+    } catch (err) {
+      console.error('Error sincronizando colecciones:', err);
+      if (!silent) {
+        setSyncMsg('Error al sincronizar');
+        setTimeout(() => setSyncMsg(''), 3500);
+      }
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Auto-sync una vez al cargar la página
+  useEffect(() => {
+    if (!loading && !syncedOnce.current) {
+      syncedOnce.current = true;
+      syncCollections(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
 
   // ── Filtrado ──
   const filtered = useMemo(() => {
@@ -243,17 +322,39 @@ export default function StatsPanel() {
           <h2 style={{ fontSize: '2rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
             <BarChart3 size={28} color="#6366f1" /> Estadísticas
           </h2>
-          <button
-            onClick={() => setShowAdd(true)}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-              backgroundColor: 'var(--primary)', color: 'white', border: 'none',
-              padding: '0.6rem 1.1rem', borderRadius: 'var(--radius)', fontWeight: 600,
-              cursor: 'pointer', fontSize: '0.9rem',
-            }}
-          >
-            <Plus size={18} /> Agregar registro
-          </button>
+          <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            {syncMsg && (
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>{syncMsg}</span>
+            )}
+            <button
+              onClick={() => syncCollections(false)}
+              disabled={syncing}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+                backgroundColor: 'var(--surface)', color: 'var(--foreground)',
+                border: '1px solid var(--border)',
+                padding: '0.6rem 1.1rem', borderRadius: 'var(--radius)', fontWeight: 600,
+                cursor: syncing ? 'not-allowed' : 'pointer', fontSize: '0.9rem',
+                opacity: syncing ? 0.6 : 1,
+              }}
+              title="Importar colecciones de clientes que aún no están en la tabla"
+            >
+              <RefreshCw size={16} style={syncing ? { animation: 'spin 1s linear infinite' } : undefined} />
+              {syncing ? 'Sincronizando...' : 'Sincronizar'}
+            </button>
+            <button
+              onClick={() => setShowAdd(true)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+                backgroundColor: 'var(--primary)', color: 'white', border: 'none',
+                padding: '0.6rem 1.1rem', borderRadius: 'var(--radius)', fontWeight: 600,
+                cursor: 'pointer', fontSize: '0.9rem',
+              }}
+            >
+              <Plus size={18} /> Agregar registro
+            </button>
+          </div>
+          <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </div>
       </div>
 
