@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { collection, onSnapshot, query, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Search, UserCheck, CheckCircle2, Circle, Folder, Archive, Users, PackageCheck, Sparkles, StickyNote } from 'lucide-react';
+import { Search, UserCheck, CheckCircle2, Circle, Folder, Archive, Users, PackageCheck, Sparkles, StickyNote, DollarSign } from 'lucide-react';
 import Link from 'next/link';
 
 interface UserData {
@@ -20,6 +20,7 @@ interface UserData {
   hasAdminNotes?: boolean;
   adminNotes?: string;
   aggregatedAdminNotes?: string; // legacy
+  designerPaid?: boolean;
 }
 
 type ClientStatus = 'active' | 'done' | 'finalized';
@@ -197,6 +198,23 @@ export default function AdminDirectory() {
                     boxShadow: '0 2px 6px rgba(245,158,11,0.4)',
                   }}>
                     <Sparkles size={11} /> NUEVO PEDIDO
+                  </span>
+                )}
+                {user.designerPaid && (
+                  <span style={{
+                    fontSize: '0.7rem',
+                    backgroundColor: 'rgba(34,197,94,0.12)',
+                    color: '#15803d',
+                    padding: '0.1rem 0.5rem',
+                    borderRadius: '999px',
+                    fontWeight: 600,
+                    border: '1px solid rgba(34,197,94,0.35)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                  }}
+                  title="Pago al diseñador ya realizado">
+                    <DollarSign size={10} /> Diseñador OK
                   </span>
                 )}
               </h3>

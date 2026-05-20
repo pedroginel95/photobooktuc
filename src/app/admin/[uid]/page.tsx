@@ -298,9 +298,16 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
   const handleToggleCollectionDesignerPaid = async (col: CollectionData) => {
     const newValue = !col.designerPaid;
     // Update optimista
-    setCollections(prev => prev.map(c => c.id === col.id ? { ...c, designerPaid: newValue } : c));
+    const updated = collections.map(c => c.id === col.id ? { ...c, designerPaid: newValue } : c);
+    setCollections(updated);
     try {
       await updateDoc(doc(db, `users/${uid}/collections`, col.id), { designerPaid: newValue });
+
+      // Reflejar en el directorio: marcar al cliente como "Diseñador OK"
+      // solo si TODAS sus colecciones no archivadas están pagas.
+      const nonArchived = updated.filter(c => !c.archived);
+      const allPaid = nonArchived.length > 0 && nonArchived.every(c => c.designerPaid);
+      await updateDoc(doc(db, 'users', uid), { designerPaid: allPaid });
     } catch (error) {
       console.error('Error actualizando pago al diseñador:', error);
       setCollections(prev => prev.map(c => c.id === col.id ? { ...c, designerPaid: !newValue } : c));

@@ -24,7 +24,8 @@ interface SaleRecord {
   booksCount: number;
   status: SaleStatus;
   userId?: string;
-  linkedCollectionId?: string;
+  linkedClientId?: string;
+  linkedCollectionId?: string; // legacy (modelo anterior por colección)
   source?: 'auto' | 'manual';
   createdAt?: { seconds: number };
 }
@@ -125,23 +126,34 @@ export default function StatsPanel() {
     return () => unsubscribe();
   }, []);
 
-  // ── Sincronización con colecciones de clientes ──
+  // ── Sincronización con clientes (1 registro por cliente) ──
   const syncCollections = async (silent = false) => {
     setSyncing(true);
     if (!silent) setSyncMsg('Sincronizando...');
     try {
-      // IDs de colecciones ya importadas (lectura fresca para evitar duplicados)
+      // Lectura fresca de registros existentes
       const existingSnap = await getDocs(collection(db, 'salesRecords'));
-      const existingIds = new Set<string>();
+      const existingClientIds = new Set<string>();
       const dismissed = new Set<string>();
+      const legacyAutoDocs: string[] = []; // registros viejos por-colección a limpiar
+
       existingSnap.forEach(d => {
         if (d.id === DISMISSED_DOC_ID) {
           (d.data().ids || []).forEach((id: string) => dismissed.add(id));
           return;
         }
-        const lc = d.data().linkedCollectionId;
-        if (lc) existingIds.add(lc);
+        const data = d.data();
+        if (data.linkedClientId) existingClientIds.add(data.linkedClientId);
+        // Detectar registros del modelo anterior (1 por colección) para eliminarlos
+        if (data.linkedCollectionId && !data.linkedClientId) {
+          legacyAutoDocs.push(d.id);
+        }
       });
+
+      // Limpiar registros viejos por-colección (auto-migración al modelo por-cliente)
+      for (const id of legacyAutoDocs) {
+        await deleteDoc(doc(db, 'salesRecords', id));
+      }
 
       const usersSnap = await getDocs(collection(db, 'users'));
       let created = 0;
@@ -150,42 +162,46 @@ export default function StatsPanel() {
         const u = userDoc.data();
         // Saltar cuentas de admin e imprenta (no son clientes)
         if (u.isAdmin || u.isImprenta) continue;
+        if (existingClientIds.has(userDoc.id)) continue; // ya tiene registro
+        if (dismissed.has(userDoc.id)) continue;          // descartado manualmente
 
         const colsSnap = await getDocs(collection(db, `users/${userDoc.id}/collections`));
+        if (colsSnap.empty) continue; // sin colecciones => no es una venta
 
+        // Sumar fotos de todas las colecciones y tomar la fecha más antigua
+        let totalPhotos = 0;
+        let earliest: Timestamp | null = null;
         for (const colDoc of colsSnap.docs) {
-          if (existingIds.has(colDoc.id)) continue; // ya importada
-          if (dismissed.has(colDoc.id)) continue;   // descartada manualmente
-
-          const colData = colDoc.data();
-          // Contar fotos de la colección
           const photosSnap = await getDocs(collection(db, `users/${userDoc.id}/collections/${colDoc.id}/photos`));
-
-          const recordId = `auto-${colDoc.id}`;
-          await setDoc(doc(db, 'salesRecords', recordId), {
-            date: colData.createdAt || Timestamp.now(),
-            clientName: `${u.name || ''} ${u.lastName || ''}`.trim() || u.email || 'Cliente',
-            productType: u.photobookType || '',
-            collectionsCount: 1,
-            photosCount: photosSnap.size,
-            booksCount: 1,
-            status: 'pending',
-            userId: userDoc.id,
-            linkedCollectionId: colDoc.id,
-            source: 'auto',
-            createdAt: Timestamp.now(),
-          });
-          created++;
-          existingIds.add(colDoc.id);
+          totalPhotos += photosSnap.size;
+          const cd = colDoc.data().createdAt as Timestamp | undefined;
+          if (cd && (!earliest || cd.seconds < earliest.seconds)) earliest = cd;
         }
+
+        const recordId = `client-${userDoc.id}`;
+        await setDoc(doc(db, 'salesRecords', recordId), {
+          date: earliest || Timestamp.now(),
+          clientName: `${u.name || ''} ${u.lastName || ''}`.trim() || u.email || 'Cliente',
+          productType: u.photobookType || '',
+          collectionsCount: colsSnap.size,
+          photosCount: totalPhotos,
+          booksCount: 1,
+          status: 'pending',
+          userId: userDoc.id,
+          linkedClientId: userDoc.id,
+          source: 'auto',
+          createdAt: Timestamp.now(),
+        });
+        created++;
+        existingClientIds.add(userDoc.id);
       }
 
       if (!silent) {
-        setSyncMsg(created > 0 ? `✓ ${created} colección(es) importada(s)` : '✓ Todo al día');
+        setSyncMsg(created > 0 ? `✓ ${created} cliente(s) importado(s)` : '✓ Todo al día');
         setTimeout(() => setSyncMsg(''), 3500);
       }
     } catch (err) {
-      console.error('Error sincronizando colecciones:', err);
+      console.error('Error sincronizando clientes:', err);
       if (!silent) {
         setSyncMsg('Error al sincronizar');
         setTimeout(() => setSyncMsg(''), 3500);
@@ -295,11 +311,12 @@ export default function StatsPanel() {
     if (!confirm(`¿Eliminar el registro de "${r.clientName}"?`)) return;
     try {
       await deleteDoc(doc(db, 'salesRecords', r.id));
-      // Si era auto-importado, recordar la colección para que NO vuelva a sincronizarse
-      if (r.linkedCollectionId) {
+      // Si era auto-importado, recordar el cliente/colección para que NO vuelva a sincronizarse
+      const dismissKey = r.linkedClientId || r.linkedCollectionId;
+      if (dismissKey) {
         await setDoc(
           doc(db, 'salesRecords', DISMISSED_DOC_ID),
-          { ids: arrayUnion(r.linkedCollectionId) },
+          { ids: arrayUnion(dismissKey) },
           { merge: true }
         );
       }
