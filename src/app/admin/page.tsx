@@ -78,6 +78,18 @@ export default function AdminDirectory() {
     }
   };
 
+  const handleToggleDesignerPaid = async (userId: string, current: boolean) => {
+    const newValue = !current;
+    // Update optimista
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, designerPaid: newValue } : u));
+    try {
+      await updateDoc(doc(db, 'users', userId), { designerPaid: newValue });
+    } catch (error) {
+      console.error("Error actualizando pago al diseñador:", error);
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, designerPaid: current } : u));
+    }
+  };
+
   const matchesSearch = (user: UserData) => {
     const term = searchTerm.toLowerCase();
     return (
@@ -200,28 +212,46 @@ export default function AdminDirectory() {
                     <Sparkles size={11} /> NUEVO PEDIDO
                   </span>
                 )}
-                {user.designerPaid && (
-                  <span style={{
-                    fontSize: '0.7rem',
-                    backgroundColor: 'rgba(34,197,94,0.12)',
-                    color: '#15803d',
-                    padding: '0.1rem 0.5rem',
-                    borderRadius: '999px',
-                    fontWeight: 600,
-                    border: '1px solid rgba(34,197,94,0.35)',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.25rem',
-                  }}
-                  title="Pago al diseñador ya realizado">
-                    <DollarSign size={10} /> Diseñador OK
-                  </span>
-                )}
               </h3>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
                 <span>{user.whatsapp}</span>
                 <span>{user.email}</span>
               </div>
+
+              {/* Checkbox interactivo: pago al diseñador */}
+              <label
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleToggleDesignerPaid(user.id, !!user.designerPaid);
+                }}
+                style={{
+                  marginTop: '0.6rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  cursor: 'pointer',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  color: user.designerPaid ? '#15803d' : 'var(--text-muted)',
+                  backgroundColor: user.designerPaid ? 'rgba(34,197,94,0.1)' : 'var(--background)',
+                  border: `1px solid ${user.designerPaid ? 'rgba(34,197,94,0.4)' : 'var(--border)'}`,
+                  borderRadius: 'var(--radius)',
+                  padding: '0.35rem 0.7rem',
+                  width: 'fit-content',
+                  transition: 'all 0.2s',
+                  userSelect: 'none',
+                }}
+                title={user.designerPaid ? 'Pago al diseñador realizado' : 'Marcar pago al diseñador'}
+              >
+                <input
+                  type="checkbox"
+                  checked={!!user.designerPaid}
+                  readOnly
+                  style={{ width: '15px', height: '15px', cursor: 'pointer', accentColor: '#16a34a', pointerEvents: 'none' }}
+                />
+                <DollarSign size={13} /> Pagado al diseñador
+              </label>
 
               {(() => {
                 const noteText = (user.adminNotes ?? user.aggregatedAdminNotes ?? '').trim();
