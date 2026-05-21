@@ -95,10 +95,9 @@ export default function StatsPanel() {
   const [syncMsg, setSyncMsg] = useState('');
   const syncedOnce = useRef(false);
 
-  // Filtros
+  // Filtros — por defecto muestra TODO para no ocultar pedidos viejos/finalizados
   const today = new Date();
-  const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-  const [dateFrom, setDateFrom] = useState<string>(toDateInputValue(firstOfMonth));
+  const [dateFrom, setDateFrom] = useState<string>('2020-01-01');
   const [dateTo, setDateTo] = useState<string>(toDateInputValue(today));
   const [statusFilter, setStatusFilter] = useState<'all' | SaleStatus>('all');
 
@@ -185,6 +184,13 @@ export default function StatsPanel() {
           if (cd && (!earliest || cd.seconds < earliest.seconds)) earliest = cd;
         }
 
+        // Mapear el estado del cliente al estado del registro de venta
+        const clientStatus = u.clientStatus;
+        const recordStatus: SaleStatus =
+          clientStatus === 'finalized' ? 'finalized'
+          : clientStatus === 'done' ? 'done'
+          : 'pending';
+
         const recordId = `client-${userDoc.id}`;
         await setDoc(doc(db, 'salesRecords', recordId), {
           date: earliest || Timestamp.now(),
@@ -193,7 +199,7 @@ export default function StatsPanel() {
           collectionsCount: colsSnap.size,
           photosCount: totalPhotos,
           booksCount: 1,
-          status: 'pending',
+          status: recordStatus,
           userId: userDoc.id,
           linkedClientId: userDoc.id,
           source: 'auto',
