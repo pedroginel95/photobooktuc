@@ -9,7 +9,7 @@ import {
 import { db } from '@/lib/firebase';
 import {
   BarChart3, ArrowLeft, Plus, X, Trash2, TrendingUp,
-  DollarSign, Wallet, BookOpen, Calendar, RefreshCw
+  DollarSign, Wallet, BookOpen, Calendar, RefreshCw, RotateCcw
 } from 'lucide-react';
 
 type SaleStatus = 'pending' | 'done' | 'finalized';
@@ -233,6 +233,40 @@ export default function StatsPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
 
+  // Resincroniza SOLO el estado de los registros existentes según el estado
+  // actual del cliente (no toca precio, costo, libros ni el pago al diseñador).
+  const resyncStatuses = async () => {
+    setSyncing(true);
+    setSyncMsg('Actualizando estados...');
+    try {
+      const usersSnap = await getDocs(collection(db, 'users'));
+      const statusByUser: Record<string, SaleStatus> = {};
+      usersSnap.forEach(d => {
+        const cs = d.data().clientStatus;
+        statusByUser[d.id] = cs === 'finalized' ? 'finalized' : cs === 'done' ? 'done' : 'pending';
+      });
+
+      let updated = 0;
+      for (const r of records) {
+        if (!r.linkedClientId) continue; // solo registros auto vinculados a un cliente
+        const target = statusByUser[r.linkedClientId];
+        if (target && target !== r.status) {
+          await updateDoc(doc(db, 'salesRecords', r.id), { status: target });
+          updated++;
+        }
+      }
+
+      setSyncMsg(updated > 0 ? `✓ ${updated} estado(s) actualizado(s)` : '✓ Estados al día');
+      setTimeout(() => setSyncMsg(''), 3500);
+    } catch (err) {
+      console.error('Error resincronizando estados:', err);
+      setSyncMsg('Error al actualizar estados');
+      setTimeout(() => setSyncMsg(''), 3500);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   // ── Filtrado ──
   const filtered = useMemo(() => {
     const fromTs = dateFrom ? new Date(dateFrom + 'T00:00:00').getTime() / 1000 : 0;
@@ -396,6 +430,22 @@ export default function StatsPanel() {
             >
               <RefreshCw size={16} style={syncing ? { animation: 'spin 1s linear infinite' } : undefined} />
               {syncing ? 'Sincronizando...' : 'Sincronizar'}
+            </button>
+            <button
+              onClick={resyncStatuses}
+              disabled={syncing}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+                backgroundColor: 'var(--surface)', color: 'var(--foreground)',
+                border: '1px solid var(--border)',
+                padding: '0.6rem 1.1rem', borderRadius: 'var(--radius)', fontWeight: 600,
+                cursor: syncing ? 'not-allowed' : 'pointer', fontSize: '0.9rem',
+                opacity: syncing ? 0.6 : 1,
+              }}
+              title="Actualizar el estado de los registros según el estado actual del cliente (no toca precio, costo ni libros)"
+            >
+              <RotateCcw size={16} />
+              Resincronizar estados
             </button>
             <button
               onClick={() => setShowAdd(true)}
