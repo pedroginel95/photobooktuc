@@ -9,7 +9,7 @@ import {
 import { db } from '@/lib/firebase';
 import {
   BarChart3, ArrowLeft, Plus, X, Trash2, TrendingUp,
-  DollarSign, Wallet, BookOpen, Calendar, RefreshCw, RotateCcw
+  DollarSign, Wallet, BookOpen, Calendar, RefreshCw, RotateCcw, Frame
 } from 'lucide-react';
 
 type SaleStatus = 'pending' | 'done' | 'finalized';
@@ -45,6 +45,9 @@ const PRODUCT_CONFIG: Record<string, ProductConfig> = {
 };
 
 const PRODUCT_TYPES = Object.keys(PRODUCT_CONFIG);
+
+// Distingue cuadros de foto libros
+const isCuadroType = (type: string) => type === 'Cuadro 30x40';
 
 // Documento especial dentro de salesRecords que guarda las colecciones descartadas
 // (para que no se vuelvan a importar al sincronizar). Se filtra de la tabla.
@@ -281,15 +284,17 @@ export default function StatsPanel() {
 
   // ── Totales ──
   const totals = useMemo(() => {
-    let facturado = 0, costos = 0, ganancia = 0, libros = 0;
+    let facturado = 0, costos = 0, ganancia = 0, libros = 0, cuadros = 0;
     filtered.forEach(r => {
       const c = calcRecord(r);
       facturado += c.facturado;
       costos += c.costos;
       ganancia += c.ganancia;
-      libros += r.booksCount || 1;
+      const units = r.booksCount || 1;
+      if (isCuadroType(r.productType)) cuadros += units;
+      else if (r.productType) libros += units; // solo cuenta foto libros con tipo asignado
     });
-    return { facturado, costos, ganancia, libros };
+    return { facturado, costos, ganancia, libros, cuadros };
   }, [filtered]);
 
   // ── Productos más vendidos (por cantidad de libros) ──
@@ -499,6 +504,7 @@ export default function StatsPanel() {
         <SummaryCard icon={<DollarSign size={20} />} label="Facturado (bruto)" value={fmt(totals.facturado)} accent="#6366f1" />
         <SummaryCard icon={<Wallet size={20} />} label="Costos" value={fmt(totals.costos)} accent="#ef4444" />
         <SummaryCard icon={<BookOpen size={20} />} label="Libros vendidos" value={String(totals.libros)} accent="#f59e0b" />
+        <SummaryCard icon={<Frame size={20} />} label="Cuadros vendidos" value={String(totals.cuadros)} accent="#8b5cf6" />
       </div>
 
       {/* Gráficos */}
@@ -513,7 +519,9 @@ export default function StatsPanel() {
               {byProduct.map((p, i) => (
                 <div key={p.type}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.25rem' }}>
-                    <span style={{ fontWeight: 600 }}>{p.type}</span>
+                    <span style={{ fontWeight: 600, fontStyle: p.type ? 'normal' : 'italic', color: p.type ? 'inherit' : 'var(--text-muted)' }}>
+                      {p.type || 'Sin especificar'}
+                    </span>
                     <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{p.count}</span>
                   </div>
                   <div style={{ height: '10px', backgroundColor: 'var(--border)', borderRadius: '5px', overflow: 'hidden' }}>
@@ -571,7 +579,7 @@ export default function StatsPanel() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem', minWidth: '900px' }}>
             <thead>
               <tr style={{ backgroundColor: 'var(--surface)', textAlign: 'left' }}>
-                {['Fecha', 'Cliente', 'Producto', 'Colecciones', 'Fotos', 'Libros', 'Facturado', 'Costos', 'Ganancia', 'Estado', 'Dis. pagado', ''].map((h) => (
+                {['Fecha', 'Cliente', 'Producto', 'Colecciones', 'Fotos', 'Unidades', 'Facturado', 'Costos', 'Ganancia', 'Estado', 'Dis. pagado', ''].map((h) => (
                   <th key={h} style={{ padding: '0.7rem 0.8rem', fontWeight: 700, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
