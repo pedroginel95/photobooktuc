@@ -364,11 +364,15 @@ export default function StatsPanel() {
   };
 
   const handleDelete = async (r: SaleRecord) => {
-    if (!confirm(`¿Eliminar el registro de "${r.clientName}"?`)) return;
+    if (!confirm(`¿Eliminar el registro de "${r.clientName}"?\n\nNo va a volver a sincronizarse desde el directorio.`)) return;
     try {
-      await deleteDoc(doc(db, 'salesRecords', r.id));
-      // Si era auto-importado, recordar el cliente/colección para que NO vuelva a sincronizarse
-      const dismissKey = r.linkedClientId || r.linkedCollectionId;
+      // Descartar por userId (vale tanto para registros nuevos como los del
+      // modelo anterior). La sincronización chequea contra userId, así que
+      // descartar por collectionId no servía y los registros volvían a aparecer.
+      const dismissKey = r.linkedClientId || r.userId;
+
+      // 1) Primero registrar el descarte: si falla, el registro NO se borra
+      //    y se evita el caso "borrado pero no descartado → vuelve al sincronizar"
       if (dismissKey) {
         await setDoc(
           doc(db, 'salesRecords', DISMISSED_DOC_ID),
@@ -376,8 +380,12 @@ export default function StatsPanel() {
           { merge: true }
         );
       }
+
+      // 2) Recién después, borrar el registro
+      await deleteDoc(doc(db, 'salesRecords', r.id));
     } catch (err) {
       console.error('Error eliminando registro:', err);
+      alert('No se pudo eliminar el registro. Probá de nuevo.');
     }
   };
 
