@@ -49,9 +49,11 @@ const PRODUCT_TYPES = Object.keys(PRODUCT_CONFIG);
 // Distingue cuadros de foto libros
 const isCuadroType = (type: string) => type === 'Cuadro 30x40';
 
-// Documento especial dentro de salesRecords que guarda las colecciones descartadas
+// Documento especial dentro de salesRecords que guarda los clientes descartados
 // (para que no se vuelvan a importar al sincronizar). Se filtra de la tabla.
-const DISMISSED_DOC_ID = '__meta_dismissed__';
+// IMPORTANTE: Firestore prohíbe IDs que matcheen __.*__ (con doble guión bajo
+// al inicio Y al final), así que no podemos usar "__meta_dismissed__".
+const DISMISSED_DOC_ID = 'meta_dismissed';
 
 const STATUS_LABEL: Record<SaleStatus, string> = {
   pending: 'Pendiente',
