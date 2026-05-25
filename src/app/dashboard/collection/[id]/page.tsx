@@ -121,8 +121,11 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
       return;
     }
 
-    files.forEach((file) => {
-      const tempId = Date.now().toString() + '-' + Math.floor(Math.random() * 1000);
+    const batchTs = Date.now();
+    files.forEach((file, idx) => {
+      // ID único garantizado: timestamp + índice en el batch + random largo (base 36, 10 chars)
+      // Esto evita colisiones cuando se suben muchas fotos en el mismo ms
+      const tempId = `${batchTs}-${idx}-${Math.random().toString(36).slice(2, 12)}`;
       const filename = file.name;
       const storageRef = ref(storage, `users/${user.uid}/${collectionId}/${tempId}-${filename}`);
       const uploadTask = uploadBytesResumable(storageRef, file);
