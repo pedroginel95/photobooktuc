@@ -244,6 +244,7 @@ export default function StatsPanel() {
     setSyncing(true);
     setSyncMsg('Actualizando estados...');
     try {
+      // Lectura fresca de usuarios para obtener el estado actual
       const usersSnap = await getDocs(collection(db, 'users'));
       const statusByUser: Record<string, SaleStatus> = {};
       usersSnap.forEach(d => {
@@ -251,12 +252,18 @@ export default function StatsPanel() {
         statusByUser[d.id] = cs === 'finalized' ? 'finalized' : cs === 'done' ? 'done' : 'pending';
       });
 
+      // Lectura fresca de salesRecords desde Firestore (no desde estado React)
+      // para garantizar que trabajamos con los datos actuales y no con caché
+      const recordsSnap = await getDocs(collection(db, 'salesRecords'));
       let updated = 0;
-      for (const r of records) {
-        if (!r.linkedClientId) continue; // solo registros auto vinculados a un cliente
-        const target = statusByUser[r.linkedClientId];
-        if (target && target !== r.status) {
-          await updateDoc(doc(db, 'salesRecords', r.id), { status: target });
+
+      for (const rDoc of recordsSnap.docs) {
+        if (rDoc.id === DISMISSED_DOC_ID) continue;
+        const data = rDoc.data();
+        if (!data.linkedClientId) continue;
+        const target = statusByUser[data.linkedClientId];
+        if (target && target !== data.status) {
+          await updateDoc(doc(db, 'salesRecords', rDoc.id), { status: target });
           updated++;
         }
       }
