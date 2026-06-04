@@ -122,34 +122,61 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
     }
 
     const batchTs = Date.now();
+
     files.forEach((file, idx) => {
-      // ID único garantizado: timestamp + índice en el batch + random largo (base 36, 10 chars)
-      // Esto evita colisiones cuando se suben muchas fotos en el mismo ms
       const tempId = `${batchTs}-${idx}-${Math.random().toString(36).slice(2, 12)}`;
-      const filename = file.name;
-      const storageRef = ref(storage, `users/${user.uid}/${collectionId}/${tempId}-${filename}`);
-      const uploadTask = uploadBytesResumable(storageRef, file);
+      const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif';
+      // Nombre final: si es HEIC lo guardamos como .jpg
+      const filename = isHeic
+        ? file.name.replace(/\.(heic|heif)$/i, '.jpg')
+        : file.name;
 
       setUploads(prev => [...prev, { filename, progress: 0 }]);
 
-      uploadTask.on('state_changed',
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          setUploads(prev => prev.map(u => u.filename === filename ? { ...u, progress } : u));
-        },
-        (error) => { console.error("Upload failed", error); },
-        async () => {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          await setDoc(doc(db, `users/${user.uid}/collections/${collectionId}/photos`, tempId), {
-            filename,
-            url: downloadURL,
-            createdAt: Timestamp.now()
-          });
-          setTimeout(() => {
+      const doUpload = (blob: Blob) => {
+        const storageRef = ref(storage, `users/${user!.uid}/${collectionId}/${tempId}-${filename}`);
+        const uploadTask = uploadBytesResumable(storageRef, blob);
+
+        uploadTask.on('state_changed',
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setUploads(prev => prev.map(u => u.filename === filename ? { ...u, progress } : u));
+          },
+          (error) => {
+            console.error("Upload failed", error);
             setUploads(prev => prev.filter(u => u.filename !== filename));
-          }, 1500);
-        }
-      );
+          },
+          async () => {
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            await setDoc(doc(db, `users/${user!.uid}/collections/${collectionId}/photos`, tempId), {
+              filename,
+              url: downloadURL,
+              createdAt: Timestamp.now()
+            });
+            setTimeout(() => {
+              setUploads(prev => prev.filter(u => u.filename !== filename));
+            }, 1500);
+          }
+        );
+      };
+
+      if (isHeic) {
+        // Convertir HEIC → JPEG en el browser antes de subir
+        import('heic2any').then(({ default: heic2any }) => {
+          heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 })
+            .then((converted) => {
+              const jpeg = Array.isArray(converted) ? converted[0] : converted;
+              doUpload(jpeg);
+            })
+            .catch((err) => {
+              console.error('Error convirtiendo HEIC:', err);
+              // Si falla la conversión, subimos el archivo original igual
+              doUpload(file);
+            });
+        });
+      } else {
+        doUpload(file);
+      }
     });
   };
 
