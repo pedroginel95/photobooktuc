@@ -9,7 +9,7 @@ import {
 import { db } from '@/lib/firebase';
 import {
   BarChart3, ArrowLeft, Plus, X, Trash2, TrendingUp,
-  DollarSign, Wallet, BookOpen, Calendar, RefreshCw, RotateCcw, Frame
+  DollarSign, Wallet, BookOpen, Calendar, RefreshCw, RotateCcw, Frame, Search
 } from 'lucide-react';
 
 type SaleStatus = 'pending' | 'done' | 'finalized';
@@ -105,6 +105,7 @@ export default function StatsPanel() {
   const [dateFrom, setDateFrom] = useState<string>('2020-01-01');
   const [dateTo, setDateTo] = useState<string>(toDateInputValue(today));
   const [statusFilter, setStatusFilter] = useState<'all' | SaleStatus>('all');
+  const [searchName, setSearchName] = useState('');
 
   // Modal alta
   const [showAdd, setShowAdd] = useState(false);
@@ -283,10 +284,12 @@ export default function StatsPanel() {
   const filtered = useMemo(() => {
     const fromTs = dateFrom ? new Date(dateFrom + 'T00:00:00').getTime() / 1000 : 0;
     const toTs = dateTo ? new Date(dateTo + 'T23:59:59').getTime() / 1000 : Infinity;
+    const nameTerm = searchName.trim().toLowerCase();
     return records.filter(r => {
       const t = r.date?.seconds || 0;
       if (t < fromTs || t > toTs) return false;
       if (statusFilter !== 'all' && r.status !== statusFilter) return false;
+      if (nameTerm && !r.clientName.toLowerCase().includes(nameTerm)) return false;
       return true;
     });
   }, [records, dateFrom, dateTo, statusFilter]);
@@ -580,9 +583,29 @@ export default function StatsPanel() {
       </div>
 
       {/* Tabla */}
-      <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border)' }}>
-        Registros ({filtered.length})
-      </h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border)', marginBottom: '1rem' }}>
+        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>
+          Registros ({filtered.length})
+        </h3>
+        <div style={{ position: 'relative', minWidth: '220px' }}>
+          <Search size={15} style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+          <input
+            type="text"
+            placeholder="Buscar por nombre..."
+            value={searchName}
+            onChange={(e) => setSearchName(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '0.5rem 0.75rem 0.5rem 2rem',
+              borderRadius: 'var(--radius)',
+              border: '1px solid var(--border)',
+              backgroundColor: 'var(--background)',
+              color: 'var(--foreground)',
+              fontSize: '0.875rem',
+            }}
+          />
+        </div>
+      </div>
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Cargando registros...</div>
