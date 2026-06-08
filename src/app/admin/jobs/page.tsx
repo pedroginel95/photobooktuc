@@ -47,6 +47,9 @@ const PHOTOBOOK_TYPES = [
   'Cuadro 30x40',
 ];
 
+// Valor centinela para "trabajo manual": habilita un campo de texto libre.
+const MANUAL_OPTION = '__manual__';
+
 export default function AdminJobsPanel() {
   const [jobs, setJobs] = useState<PrintJob[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,6 +58,7 @@ export default function AdminJobsPanel() {
   // Formulario
   const [name, setName] = useState('');
   const [photobookType, setPhotobookType] = useState('');
+  const [manualType, setManualType] = useState('');
   const [notes, setNotes] = useState('');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -84,6 +88,7 @@ export default function AdminJobsPanel() {
   const resetForm = () => {
     setName('');
     setPhotobookType('');
+    setManualType('');
     setNotes('');
     setPdfFile(null);
     setUploadProgress(0);
@@ -98,8 +103,12 @@ export default function AdminJobsPanel() {
       setError('El nombre del trabajo es obligatorio.');
       return;
     }
-    if (!photobookType) {
-      setError('Elegí un tipo de libro.');
+    // Tipo efectivo: si es manual, usar el texto libre; si no, la opción del desplegable.
+    const finalType = photobookType === MANUAL_OPTION ? manualType.trim() : photobookType;
+    if (!finalType) {
+      setError(photobookType === MANUAL_OPTION
+        ? 'Escribí el tipo de trabajo manual.'
+        : 'Elegí un tipo de libro.');
       return;
     }
 
@@ -136,7 +145,7 @@ export default function AdminJobsPanel() {
       // Crear documento
       await setDoc(doc(db, 'printJobs', jobId), {
         name: name.trim(),
-        photobookType,
+        photobookType: finalType,
         notes: notes.trim(),
         pdfUrl,
         pdfFilename,
@@ -188,6 +197,10 @@ export default function AdminJobsPanel() {
     done:    jobs.filter(j => j.status === 'done'),
     paid:    jobs.filter(j => j.status === 'paid'),
   };
+
+  // Tipo efectivo para validar el formulario (manual usa el texto libre).
+  const effectiveType = photobookType === MANUAL_OPTION ? manualType.trim() : photobookType;
+  const formInvalid = creating || !name.trim() || !effectiveType;
 
   return (
     <div>
@@ -243,7 +256,19 @@ export default function AdminJobsPanel() {
               >
                 <option value="">— Elegí un producto —</option>
                 {PHOTOBOOK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                <option value={MANUAL_OPTION}>✏️ Trabajo manual (otro)</option>
               </select>
+
+              {photobookType === MANUAL_OPTION && (
+                <input
+                  type="text"
+                  value={manualType}
+                  onChange={(e) => setManualType(e.target.value)}
+                  placeholder="Escribí el tipo de trabajo"
+                  autoFocus
+                  style={{ width: '100%', marginTop: '0.5rem', padding: '0.6rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                />
+              )}
             </div>
           </div>
 
@@ -318,7 +343,7 @@ export default function AdminJobsPanel() {
 
           <button
             type="submit"
-            disabled={creating || !name.trim() || !photobookType}
+            disabled={formInvalid}
             style={{
               backgroundColor: 'var(--primary)',
               color: 'white',
@@ -326,11 +351,11 @@ export default function AdminJobsPanel() {
               padding: '0.7rem 1.5rem',
               borderRadius: 'var(--radius)',
               fontWeight: 600,
-              cursor: creating || !name.trim() || !photobookType ? 'not-allowed' : 'pointer',
+              cursor: formInvalid ? 'not-allowed' : 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.5rem',
-              opacity: creating || !name.trim() || !photobookType ? 0.7 : 1,
+              opacity: formInvalid ? 0.7 : 1,
             }}
           >
             <Plus size={16} /> {creating ? 'Creando...' : 'Crear trabajo'}
