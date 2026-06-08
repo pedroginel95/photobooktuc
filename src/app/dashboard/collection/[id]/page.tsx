@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useRef, useEffect, use } from 'react';
+import React, { useState, useRef, useEffect, useMemo, use } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
-import { collection, doc, setDoc, getDoc, onSnapshot, query, orderBy, Timestamp, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc, onSnapshot, query, orderBy, Timestamp, updateDoc, writeBatch } from 'firebase/firestore';
 import { storage, db } from '@/lib/firebase';
 import styles from '../../page.module.css';
 import {
@@ -35,7 +35,8 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
   const [photos, setPhotos] = useState<PhotoData[]>([]);
   const [collectionName, setCollectionName] = useState<string>('Cargando...');
   const [photoOrder, setPhotoOrder] = useState<string[]>([]);
-  const [orderedPhotos, setOrderedPhotos] = useState<PhotoData[]>([]);
+  // Borrador editable mientras se ordena manualmente (modo ordenar).
+  const [draftPhotos, setDraftPhotos] = useState<PhotoData[]>([]);
 
   // Modo ordenar
   const [sortMode, setSortMode] = useState(false);
@@ -52,25 +53,22 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
   // Drag táctil (touch/mobile)
   const touchDragIdx = useRef<number | null>(null);
 
-  // Aplicar orden manual a las fotos.
-  // Si sortMode está activo, NO re-sortear: el usuario está ordenando
-  // manualmente y no queremos que nuevas subidas le rompan el orden.
-  useEffect(() => {
-    if (sortMode) return;
-    if (photoOrder.length > 0) {
-      const sorted = [...photos].sort((a, b) => {
-        const ai = photoOrder.indexOf(a.id);
-        const bi = photoOrder.indexOf(b.id);
-        if (ai === -1 && bi === -1) return 0;
-        if (ai === -1) return 1;
-        if (bi === -1) return -1;
-        return ai - bi;
-      });
-      setOrderedPhotos(sorted);
-    } else {
-      setOrderedPhotos(photos);
-    }
-  }, [photos, photoOrder, sortMode]);
+  // Orden canónico (guardado): derivado de photos + photoOrder.
+  const sortedPhotos = useMemo(() => {
+    if (photoOrder.length === 0) return photos;
+    return [...photos].sort((a, b) => {
+      const ai = photoOrder.indexOf(a.id);
+      const bi = photoOrder.indexOf(b.id);
+      if (ai === -1 && bi === -1) return 0;
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+  }, [photos, photoOrder]);
+
+  // En modo ordenar mostramos el borrador editable; si no, el orden canónico.
+  // Así nuevas subidas no rompen el orden manual en curso (el borrador es independiente).
+  const orderedPhotos = sortMode ? draftPhotos : sortedPhotos;
 
   useEffect(() => {
     if (!user || !collectionId) return;
@@ -193,7 +191,7 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
     const swapIndex = direction === 'up' ? index - 1 : index + 1;
     if (swapIndex < 0 || swapIndex >= newPhotos.length) return;
     [newPhotos[index], newPhotos[swapIndex]] = [newPhotos[swapIndex], newPhotos[index]];
-    setOrderedPhotos(newPhotos);
+    setDraftPhotos(newPhotos);
   };
 
   const handleMoveToFirst = (index: number) => {
@@ -201,7 +199,7 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
     const newPhotos = [...orderedPhotos];
     const [moved] = newPhotos.splice(index, 1);
     newPhotos.unshift(moved);
-    setOrderedPhotos(newPhotos);
+    setDraftPhotos(newPhotos);
   };
 
   const handleMoveToLast = (index: number) => {
@@ -209,7 +207,7 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
     const newPhotos = [...orderedPhotos];
     const [moved] = newPhotos.splice(index, 1);
     newPhotos.push(moved);
-    setOrderedPhotos(newPhotos);
+    setDraftPhotos(newPhotos);
   };
 
   const handleSetPosition = (fromIndex: number, inputValue: string) => {
@@ -220,7 +218,7 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
     const newPhotos = [...orderedPhotos];
     const [moved] = newPhotos.splice(fromIndex, 1);
     newPhotos.splice(toIndex, 0, moved);
-    setOrderedPhotos(newPhotos);
+    setDraftPhotos(newPhotos);
   };
 
   const handleSaveOrder = async () => {
@@ -241,19 +239,7 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
   };
 
   const handleCancelSort = () => {
-    if (photoOrder.length > 0) {
-      const sorted = [...photos].sort((a, b) => {
-        const ai = photoOrder.indexOf(a.id);
-        const bi = photoOrder.indexOf(b.id);
-        if (ai === -1 && bi === -1) return 0;
-        if (ai === -1) return 1;
-        if (bi === -1) return -1;
-        return ai - bi;
-      });
-      setOrderedPhotos(sorted);
-    } else {
-      setOrderedPhotos(photos);
-    }
+    // Descartamos el borrador; el render vuelve al orden canónico (sortedPhotos).
     setSortMode(false);
   };
 
@@ -493,7 +479,7 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
                 <>
                   {orderedPhotos.length > 1 && (
                     <button
-                      onClick={() => { setSortMode(true); setSelectMode(false); }}
+                      onClick={() => { setDraftPhotos(sortedPhotos); setSortMode(true); setSelectMode(false); }}
                       style={{
                         display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
                         backgroundColor: 'var(--surface)', color: 'var(--foreground)',
@@ -591,7 +577,7 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
                     const newPhotos = [...orderedPhotos];
                     const [moved] = newPhotos.splice(draggedIndex, 1);
                     newPhotos.splice(idx, 0, moved);
-                    setOrderedPhotos(newPhotos);
+                    setDraftPhotos(newPhotos);
                     setDraggedIndex(idx);
                   }}
                   onDragEnd={() => setDraggedIndex(null)}
@@ -613,7 +599,7 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
                     const newPhotos = [...orderedPhotos];
                     const [moved] = newPhotos.splice(touchDragIdx.current, 1);
                     newPhotos.splice(targetIdx, 0, moved);
-                    setOrderedPhotos(newPhotos);
+                    setDraftPhotos(newPhotos);
                     touchDragIdx.current = targetIdx;
                   }}
                   onTouchEnd={() => { touchDragIdx.current = null; }}
