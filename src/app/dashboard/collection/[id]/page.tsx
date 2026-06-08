@@ -8,8 +8,8 @@ import { storage, db } from '@/lib/firebase';
 import styles from '../../page.module.css';
 import {
   UploadCloud, Image as ImageIcon, ArrowLeft,
-  GripVertical, ChevronUp, ChevronDown, SortAsc, Check,
-  Trash2, CheckSquare, Square, X
+  GripVertical, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown,
+  SortAsc, Check, Trash2, CheckSquare, Square, X
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -46,11 +46,17 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
   const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
 
-  // Drag & drop
+  // Drag & drop (mouse)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
-  // Aplicar orden manual a las fotos
+  // Drag táctil (touch/mobile)
+  const touchDragIdx = useRef<number | null>(null);
+
+  // Aplicar orden manual a las fotos.
+  // Si sortMode está activo, NO re-sortear: el usuario está ordenando
+  // manualmente y no queremos que nuevas subidas le rompan el orden.
   useEffect(() => {
+    if (sortMode) return;
     if (photoOrder.length > 0) {
       const sorted = [...photos].sort((a, b) => {
         const ai = photoOrder.indexOf(a.id);
@@ -64,7 +70,7 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
     } else {
       setOrderedPhotos(photos);
     }
-  }, [photos, photoOrder]);
+  }, [photos, photoOrder, sortMode]);
 
   useEffect(() => {
     if (!user || !collectionId) return;
@@ -190,6 +196,33 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
     setOrderedPhotos(newPhotos);
   };
 
+  const handleMoveToFirst = (index: number) => {
+    if (index === 0) return;
+    const newPhotos = [...orderedPhotos];
+    const [moved] = newPhotos.splice(index, 1);
+    newPhotos.unshift(moved);
+    setOrderedPhotos(newPhotos);
+  };
+
+  const handleMoveToLast = (index: number) => {
+    if (index === orderedPhotos.length - 1) return;
+    const newPhotos = [...orderedPhotos];
+    const [moved] = newPhotos.splice(index, 1);
+    newPhotos.push(moved);
+    setOrderedPhotos(newPhotos);
+  };
+
+  const handleSetPosition = (fromIndex: number, inputValue: string) => {
+    const pos = parseInt(inputValue, 10);
+    if (isNaN(pos)) return;
+    const toIndex = Math.min(Math.max(0, pos - 1), orderedPhotos.length - 1);
+    if (toIndex === fromIndex) return;
+    const newPhotos = [...orderedPhotos];
+    const [moved] = newPhotos.splice(fromIndex, 1);
+    newPhotos.splice(toIndex, 0, moved);
+    setOrderedPhotos(newPhotos);
+  };
+
   const handleSaveOrder = async () => {
     if (!user) return;
     setSavingOrder(true);
@@ -305,6 +338,13 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
   // ── Render ───────────────────────────────────────────────────────────────────
 
   const allSelected = orderedPhotos.length > 0 && selectedPhotos.size === orderedPhotos.length;
+
+  const btnStyle: React.CSSProperties = {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    color: 'white', border: 'none', borderRadius: '4px',
+    width: '26px', height: '26px', display: 'flex',
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  };
 
   return (
     <div>
@@ -535,7 +575,9 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
                 <div
                   key={photo.id}
                   className={styles.imageWrapper}
+                  data-sort-idx={idx}
                   onClick={selectMode ? () => handleToggleSelect(photo.id) : undefined}
+                  // Drag mouse (desktop)
                   draggable={sortMode}
                   onDragStart={(e) => {
                     if (!sortMode) return;
@@ -545,7 +587,6 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
                   onDragOver={(e) => {
                     if (!sortMode || draggedIndex === null) return;
                     e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
                     if (draggedIndex === idx) return;
                     const newPhotos = [...orderedPhotos];
                     const [moved] = newPhotos.splice(draggedIndex, 1);
@@ -555,8 +596,29 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
                   }}
                   onDragEnd={() => setDraggedIndex(null)}
                   onDrop={(e) => { e.preventDefault(); setDraggedIndex(null); }}
+                  // Drag táctil (mobile)
+                  onTouchStart={() => {
+                    if (!sortMode) return;
+                    touchDragIdx.current = idx;
+                  }}
+                  onTouchMove={(e) => {
+                    if (!sortMode || touchDragIdx.current === null) return;
+                    e.preventDefault();
+                    const touch = e.touches[0];
+                    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+                    const card = el?.closest('[data-sort-idx]') as HTMLElement | null;
+                    if (!card) return;
+                    const targetIdx = Number(card.getAttribute('data-sort-idx'));
+                    if (isNaN(targetIdx) || targetIdx === touchDragIdx.current) return;
+                    const newPhotos = [...orderedPhotos];
+                    const [moved] = newPhotos.splice(touchDragIdx.current, 1);
+                    newPhotos.splice(targetIdx, 0, moved);
+                    setOrderedPhotos(newPhotos);
+                    touchDragIdx.current = targetIdx;
+                  }}
+                  onTouchEnd={() => { touchDragIdx.current = null; }}
                   style={{
-                    cursor: selectMode ? 'pointer' : sortMode ? 'move' : undefined,
+                    cursor: selectMode ? 'pointer' : sortMode ? 'grab' : undefined,
                     border: selectMode
                       ? isSelected ? '2.5px solid #ef4444' : '2px solid var(--border)'
                       : sortMode ? '2px solid var(--primary)' : undefined,
@@ -564,6 +626,7 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
                     opacity: isDragging ? 0.4 : 1,
                     transform: isDragging ? 'scale(0.96)' : undefined,
                     transition: 'border-color 0.15s, box-shadow 0.15s, opacity 0.15s, transform 0.15s',
+                    touchAction: sortMode ? 'none' : undefined,
                   }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -596,43 +659,88 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
 
                   {/* Controles modo ordenar */}
                   {sortMode && (
-                    <div style={{
-                      position: 'absolute', bottom: 0, left: 0, right: 0,
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      padding: '0.4rem 0.5rem',
-                      background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(2px)',
-                    }}>
-                      <button
-                        onClick={() => handleMovePhoto(idx, 'up')}
-                        disabled={idx === 0}
-                        style={{
-                          backgroundColor: idx === 0 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.25)',
-                          color: 'white', border: 'none', borderRadius: '4px',
-                          width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          cursor: idx === 0 ? 'not-allowed' : 'pointer', opacity: idx === 0 ? 0.4 : 1,
-                        }}
-                        title="Mover arriba"
-                      >
-                        <ChevronUp size={16} />
-                      </button>
-                      <span style={{ color: 'white', fontSize: '0.7rem', fontWeight: 600 }}>
-                        {idx + 1}/{orderedPhotos.length}
-                      </span>
-                      <button
-                        onClick={() => handleMovePhoto(idx, 'down')}
-                        disabled={idx === orderedPhotos.length - 1}
-                        style={{
-                          backgroundColor: idx === orderedPhotos.length - 1 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.25)',
-                          color: 'white', border: 'none', borderRadius: '4px',
-                          width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          cursor: idx === orderedPhotos.length - 1 ? 'not-allowed' : 'pointer',
-                          opacity: idx === orderedPhotos.length - 1 ? 0.4 : 1,
-                        }}
-                        title="Mover abajo"
-                      >
-                        <ChevronDown size={16} />
-                      </button>
-                    </div>
+                    <>
+                      {/* Input de posición — arriba centrado */}
+                      <div style={{
+                        position: 'absolute', top: '0.35rem', left: 0, right: 0,
+                        display: 'flex', justifyContent: 'center',
+                      }}>
+                        <input
+                          type="number"
+                          min={1}
+                          max={orderedPhotos.length}
+                          defaultValue={idx + 1}
+                          key={`${photo.id}-${idx}`}
+                          onClick={(e) => e.stopPropagation()}
+                          onFocus={(e) => e.currentTarget.select()}
+                          onBlur={(e) => handleSetPosition(idx, e.currentTarget.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
+                            e.stopPropagation();
+                          }}
+                          title="Escribí el número de posición y presioná Enter"
+                          style={{
+                            width: '52px', textAlign: 'center',
+                            padding: '0.2rem 0.3rem',
+                            borderRadius: '6px',
+                            border: '2px solid rgba(255,255,255,0.8)',
+                            backgroundColor: 'rgba(0,0,0,0.65)',
+                            color: 'white', fontWeight: 700, fontSize: '0.85rem',
+                            outline: 'none', cursor: 'text',
+                          }}
+                        />
+                      </div>
+
+                      {/* Barra de controles — abajo */}
+                      <div style={{
+                        position: 'absolute', bottom: 0, left: 0, right: 0,
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '0.3rem 0.4rem',
+                        background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(2px)',
+                        gap: '0.2rem',
+                      }}>
+                        {/* Al inicio */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleMoveToFirst(idx); }}
+                          disabled={idx === 0}
+                          title="Mover al inicio"
+                          style={{ ...btnStyle, opacity: idx === 0 ? 0.3 : 1, cursor: idx === 0 ? 'not-allowed' : 'pointer' }}
+                        >
+                          <ChevronsUp size={13} />
+                        </button>
+                        {/* Arriba */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleMovePhoto(idx, 'up'); }}
+                          disabled={idx === 0}
+                          title="Mover una posición arriba"
+                          style={{ ...btnStyle, opacity: idx === 0 ? 0.3 : 1, cursor: idx === 0 ? 'not-allowed' : 'pointer' }}
+                        >
+                          <ChevronUp size={13} />
+                        </button>
+
+                        {/* Ícono drag */}
+                        <GripVertical size={13} color="rgba(255,255,255,0.5)" style={{ flexShrink: 0 }} />
+
+                        {/* Abajo */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleMovePhoto(idx, 'down'); }}
+                          disabled={idx === orderedPhotos.length - 1}
+                          title="Mover una posición abajo"
+                          style={{ ...btnStyle, opacity: idx === orderedPhotos.length - 1 ? 0.3 : 1, cursor: idx === orderedPhotos.length - 1 ? 'not-allowed' : 'pointer' }}
+                        >
+                          <ChevronDown size={13} />
+                        </button>
+                        {/* Al final */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleMoveToLast(idx); }}
+                          disabled={idx === orderedPhotos.length - 1}
+                          title="Mover al final"
+                          style={{ ...btnStyle, opacity: idx === orderedPhotos.length - 1 ? 0.3 : 1, cursor: idx === orderedPhotos.length - 1 ? 'not-allowed' : 'pointer' }}
+                        >
+                          <ChevronsDown size={13} />
+                        </button>
+                      </div>
+                    </>
                   )}
                 </div>
               );
