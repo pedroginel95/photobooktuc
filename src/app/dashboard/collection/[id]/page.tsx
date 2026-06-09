@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useMemo, use } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { ref, uploadBytes, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
-import { collection, doc, setDoc, getDoc, onSnapshot, query, orderBy, Timestamp, updateDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc, getDocs, onSnapshot, query, orderBy, Timestamp, updateDoc, writeBatch } from 'firebase/firestore';
 import { storage, db } from '@/lib/firebase';
 import styles from '../../page.module.css';
 import {
@@ -393,9 +393,24 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
     setSavingNote(true);
     setNoteSaved(false);
     try {
+      const trimmed = clientNote.trim();
       const colRef = doc(db, `users/${user.uid}/collections`, collectionId);
-      await updateDoc(colRef, { clientNote: clientNote.trim() });
-      setSavedNote(clientNote.trim());
+      await updateDoc(colRef, { clientNote: trimmed });
+
+      // Reflejar a nivel usuario si tiene al menos una colección con nota,
+      // para mostrar el indicador en el directorio del admin.
+      try {
+        const colsSnap = await getDocs(collection(db, `users/${user.uid}/collections`));
+        const anyNote = colsSnap.docs.some(d => {
+          const n = d.id === collectionId ? trimmed : ((d.data().clientNote as string) || '').trim();
+          return n.length > 0;
+        });
+        await updateDoc(doc(db, 'users', user.uid), { hasClientNote: anyNote });
+      } catch (flagErr) {
+        console.error('No se pudo actualizar el indicador de nota:', flagErr);
+      }
+
+      setSavedNote(trimmed);
       setNoteSaved(true);
       setTimeout(() => setNoteSaved(false), 2500);
     } catch (error) {

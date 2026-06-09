@@ -17,6 +17,7 @@ interface UserData {
   clientStatus?: 'active' | 'done' | 'finalized';
   hasArchived?: boolean;
   hasNewOrder?: boolean;
+  hasClientNote?: boolean;
   hasAdminNotes?: boolean;
   adminNotes?: string;
   aggregatedAdminNotes?: string; // legacy
@@ -210,6 +211,23 @@ export default function AdminDirectory() {
                     boxShadow: '0 2px 6px rgba(245,158,11,0.4)',
                   }}>
                     <Sparkles size={11} /> NUEVO PEDIDO
+                  </span>
+                )}
+                {user.hasClientNote && (
+                  <span style={{
+                    fontSize: '0.7rem',
+                    backgroundColor: 'rgba(245,158,11,0.12)',
+                    color: '#b45309',
+                    padding: '0.15rem 0.55rem',
+                    borderRadius: '999px',
+                    fontWeight: 600,
+                    border: '1px solid rgba(245,158,11,0.3)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    <StickyNote size={11} /> Nota de diseño
                   </span>
                 )}
               </h3>
