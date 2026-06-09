@@ -33,6 +33,7 @@ interface CollectionData {
   archived?: boolean;
   isNewOrder?: boolean;
   designerPaid?: boolean;
+  clientNote?: string;
 }
 
 export default function ClientDetail({ params }: { params: Promise<{ uid: string }> }) {
@@ -116,6 +117,7 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
             archived: d.data().archived || false,
             isNewOrder: d.data().isNewOrder || false,
             designerPaid: d.data().designerPaid || false,
+            clientNote: d.data().clientNote || '',
           });
         }
 
@@ -887,6 +889,23 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
                     </button>
                   </div>
                 </div>
+
+                {col.clientNote && col.clientNote.trim() && (
+                  <div style={{
+                    marginBottom: '1.25rem',
+                    padding: '0.85rem 1rem',
+                    backgroundColor: 'rgba(245,158,11,0.08)',
+                    border: '1px solid rgba(245,158,11,0.35)',
+                    borderRadius: 'var(--radius)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#b45309', marginBottom: '0.35rem' }}>
+                      <StickyNote size={13} /> Nota del cliente para el diseñador
+                    </div>
+                    <p style={{ fontSize: '0.88rem', color: '#78350f', lineHeight: 1.5, whiteSpace: 'pre-wrap', margin: 0 }}>
+                      {col.clientNote}
+                    </p>
+                  </div>
+                )}
 
                 {col.photos.length === 0 ? (
                   <div className={styles.emptyGallery} style={{ padding: '2rem 1rem' }}>

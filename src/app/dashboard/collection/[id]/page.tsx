@@ -2,14 +2,14 @@
 
 import React, { useState, useRef, useEffect, useMemo, use } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
+import { ref, uploadBytes, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { collection, doc, setDoc, getDoc, onSnapshot, query, orderBy, Timestamp, updateDoc, writeBatch } from 'firebase/firestore';
 import { storage, db } from '@/lib/firebase';
 import styles from '../../page.module.css';
 import {
   UploadCloud, Image as ImageIcon, ArrowLeft,
   GripVertical, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown,
-  SortAsc, Check, Trash2, CheckSquare, Square, X
+  SortAsc, Check, Trash2, CheckSquare, Square, X, StickyNote, Save
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -20,10 +20,39 @@ interface UploadProgress {
 
 interface PhotoData {
   id: string;
-  url: string;
+  url: string;            // Original full-res: descarga, vista grande e impresion.
+  thumbUrl?: string;      // Miniatura liviana, SOLO para el preview de ordenar.
+  thumbStoragePath?: string;
   filename: string;
   createdAt: unknown;
 }
+
+// Genera una miniatura liviana (JPEG comprimido) a partir del blob original.
+// NO toca el original: solo se usa para mostrar el preview mas rapido.
+const makeThumbnail = (blob: Blob, maxSize = 600, quality = 0.6): Promise<Blob> =>
+  new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(blob);
+    const img = new window.Image();
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('No se pudo crear el contexto del canvas')); return; }
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(
+        (out) => out ? resolve(out) : reject(new Error('toBlob devolvio null')),
+        'image/jpeg',
+        quality
+      );
+    };
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('No se pudo cargar la imagen para la miniatura')); };
+    img.src = objectUrl;
+  });
 
 export default function CollectionPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -35,6 +64,12 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
   const [photos, setPhotos] = useState<PhotoData[]>([]);
   const [collectionName, setCollectionName] = useState<string>('Cargando...');
   const [photoOrder, setPhotoOrder] = useState<string[]>([]);
+
+  // Nota de diseño que el cliente deja para el diseñador.
+  const [clientNote, setClientNote] = useState('');
+  const [savedNote, setSavedNote] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
+  const [noteSaved, setNoteSaved] = useState(false);
   // Borrador editable mientras se ordena manualmente (modo ordenar).
   const [draftPhotos, setDraftPhotos] = useState<PhotoData[]>([]);
 
@@ -81,6 +116,9 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
         if (snap.data().photoOrder) {
           setPhotoOrder(snap.data().photoOrder as string[]);
         }
+        const note = (snap.data().clientNote as string) || '';
+        setClientNote(note);
+        setSavedNote(note);
       } else {
         setCollectionName('Colección No Encontrada');
       }
@@ -152,9 +190,27 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
           },
           async () => {
             const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+
+            // Miniatura liviana SOLO para el preview (el original ya quedó subido full-res).
+            // Si algo falla, seguimos sin miniatura y el preview usa el original como fallback.
+            let thumbUrl = '';
+            let thumbStoragePath = '';
+            try {
+              const thumbBlob = await makeThumbnail(blob);
+              thumbStoragePath = `users/${user!.uid}/${collectionId}/thumbs/${tempId}-${filename}`;
+              const thumbRef = ref(storage, thumbStoragePath);
+              await uploadBytes(thumbRef, thumbBlob);
+              thumbUrl = await getDownloadURL(thumbRef);
+            } catch (err) {
+              console.error('No se pudo generar la miniatura:', err);
+              thumbStoragePath = '';
+            }
+
             await setDoc(doc(db, `users/${user!.uid}/collections/${collectionId}/photos`, tempId), {
               filename,
               url: downloadURL,
+              thumbUrl,
+              thumbStoragePath,
               createdAt: Timestamp.now()
             });
             setTimeout(() => {
@@ -299,6 +355,15 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
         } catch {
           // Si el archivo no existe o no se puede borrar, continuar igual
         }
+
+        // Eliminar la miniatura asociada (si existe)
+        if (photo.thumbStoragePath) {
+          try {
+            await deleteObject(ref(storage, photo.thumbStoragePath));
+          } catch {
+            // Si no existe, continuar
+          }
+        }
       }
 
       await batch.commit();
@@ -321,6 +386,28 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
     }
   };
 
+  // ── Nota de diseño ───────────────────────────────────────────────────────────
+
+  const handleSaveNote = async () => {
+    if (!user) return;
+    setSavingNote(true);
+    setNoteSaved(false);
+    try {
+      const colRef = doc(db, `users/${user.uid}/collections`, collectionId);
+      await updateDoc(colRef, { clientNote: clientNote.trim() });
+      setSavedNote(clientNote.trim());
+      setNoteSaved(true);
+      setTimeout(() => setNoteSaved(false), 2500);
+    } catch (error) {
+      console.error('Error guardando la nota:', error);
+      alert('No se pudo guardar la nota. Intentá de nuevo.');
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+  const noteDirty = clientNote.trim() !== savedNote.trim();
+
   // ── Render ───────────────────────────────────────────────────────────────────
 
   const allSelected = orderedPhotos.length > 0 && selectedPhotos.size === orderedPhotos.length;
@@ -341,6 +428,60 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
           </Link>
           <h2 className={styles.title}>{collectionName}</h2>
           <p className={styles.subtitle}>Sube fotos directamente a esta colección.</p>
+        </div>
+      </div>
+
+      {/* ── Nota de diseño para el diseñador ── */}
+      <div style={{
+        backgroundColor: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius)',
+        padding: '1.1rem 1.25rem',
+        marginBottom: '1.5rem',
+      }}>
+        <label htmlFor="clientNote" style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 700, fontSize: '0.95rem', marginBottom: '0.3rem' }}>
+          <StickyNote size={16} color="#b45309" /> Nota para el diseñador
+        </label>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.6rem', lineHeight: 1.45 }}>
+          Dejá acá cualquier sugerencia de diseño y el diseñador la va a seguir. Por ejemplo:
+          “quiero que el photobook tenga esta frase en la foto 10” o “quiero que el título de este book sea: …”.
+        </p>
+        <textarea
+          id="clientNote"
+          value={clientNote}
+          onChange={(e) => setClientNote(e.target.value)}
+          placeholder="Ej: Quiero que el título del book sea “Nuestra Boda 2026” y que en la foto 10 vaya la frase “Para siempre”."
+          rows={4}
+          style={{
+            width: '100%', padding: '0.7rem', borderRadius: 'var(--radius)',
+            border: '1px solid var(--border)', backgroundColor: 'var(--background)',
+            color: 'var(--foreground)', fontFamily: 'inherit', fontSize: '0.9rem',
+            resize: 'vertical', lineHeight: 1.5,
+          }}
+        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.6rem' }}>
+          <button
+            onClick={handleSaveNote}
+            disabled={savingNote || !noteDirty}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.45rem',
+              backgroundColor: 'var(--primary)', color: 'white', border: 'none',
+              padding: '0.55rem 1.1rem', borderRadius: 'var(--radius)', fontWeight: 600,
+              fontSize: '0.85rem',
+              cursor: savingNote || !noteDirty ? 'not-allowed' : 'pointer',
+              opacity: savingNote || !noteDirty ? 0.6 : 1,
+            }}
+          >
+            <Save size={15} /> {savingNote ? 'Guardando...' : 'Guardar nota'}
+          </button>
+          {noteSaved && !noteDirty && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', color: '#15803d', fontSize: '0.82rem', fontWeight: 600 }}>
+              <Check size={14} /> Nota guardada
+            </span>
+          )}
+          {noteDirty && !savingNote && (
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Cambios sin guardar</span>
+          )}
         </div>
       </div>
 
@@ -615,8 +756,10 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
                     touchAction: sortMode ? 'none' : undefined,
                   }}
                 >
+                  {/* Preview liviano: usa la miniatura; si no hay (fotos viejas), cae al original.
+                      El original full-res sigue en photo.url para descarga/impresión. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={photo.url} alt={photo.filename} className={styles.image} loading="lazy" />
+                  <img src={photo.thumbUrl || photo.url} alt={photo.filename} className={styles.image} loading="lazy" decoding="async" />
 
                   {/* Overlay modo seleccionar */}
                   {selectMode && (
