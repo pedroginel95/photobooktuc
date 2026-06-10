@@ -10,7 +10,8 @@ import { db, storage } from '@/lib/firebase';
 import Link from 'next/link';
 import {
   Briefcase, Plus, FileText, Trash2, ExternalLink,
-  Circle, CheckCircle2, DollarSign, UploadCloud, X, StickyNote, ArrowLeft
+  Circle, CheckCircle2, DollarSign, UploadCloud, X, StickyNote, ArrowLeft,
+  Pencil, Save
 } from 'lucide-react';
 
 interface PrintJob {
@@ -64,6 +65,14 @@ export default function AdminJobsPanel() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Edición de un trabajo existente
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editType, setEditType] = useState('');
+  const [editManualType, setEditManualType] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
     const q = query(collection(db, 'printJobs'), orderBy('createdAt', 'desc'));
@@ -189,6 +198,46 @@ export default function AdminJobsPanel() {
       await updateDoc(doc(db, 'printJobs', jobId), { status: newStatus });
     } catch (err) {
       console.error('Error actualizando estado:', err);
+    }
+  };
+
+  const startEdit = (job: PrintJob) => {
+    setEditingId(job.id);
+    setEditName(job.name);
+    // Si el tipo es uno de los preset usamos el desplegable; si no, modo manual.
+    const isPreset = PHOTOBOOK_TYPES.includes(job.photobookType);
+    setEditType(isPreset ? job.photobookType : MANUAL_OPTION);
+    setEditManualType(isPreset ? '' : job.photobookType);
+    setEditNotes(job.notes || '');
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+  };
+
+  const saveEdit = async (jobId: string) => {
+    if (!editName.trim()) {
+      alert('El nombre del trabajo es obligatorio.');
+      return;
+    }
+    const finalType = editType === MANUAL_OPTION ? editManualType.trim() : editType;
+    if (!finalType) {
+      alert(editType === MANUAL_OPTION ? 'Escribí el tipo de trabajo manual.' : 'Elegí un tipo de libro.');
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      await updateDoc(doc(db, 'printJobs', jobId), {
+        name: editName.trim(),
+        photobookType: finalType,
+        notes: editNotes.trim(),
+      });
+      setEditingId(null);
+    } catch (err) {
+      console.error('Error editando trabajo:', err);
+      alert('No se pudieron guardar los cambios.');
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -405,81 +454,164 @@ export default function AdminJobsPanel() {
                       borderRadius: 'var(--radius)',
                       padding: '1rem 1.1rem',
                     }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <h5 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '0.2rem' }}>{job.name}</h5>
-                          <span style={{ fontSize: '0.7rem', color: '#b45309', backgroundColor: 'rgba(245,158,11,0.12)', padding: '0.1rem 0.5rem', borderRadius: '999px', fontWeight: 600 }}>
-                            📖 {job.photobookType}
-                          </span>
+                      {editingId === job.id ? (
+                        /* ── Modo edición ── */
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.2rem' }}>Nombre del trabajo *</label>
+                            <input
+                              type="text"
+                              value={editName}
+                              onChange={(e) => setEditName(e.target.value)}
+                              style={{ width: '100%', padding: '0.5rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)', fontSize: '0.85rem' }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.2rem' }}>Tipo de libro *</label>
+                            <select
+                              value={editType}
+                              onChange={(e) => setEditType(e.target.value)}
+                              style={{ width: '100%', padding: '0.5rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)', fontSize: '0.85rem', cursor: 'pointer' }}
+                            >
+                              <option value="">— Elegí un producto —</option>
+                              {PHOTOBOOK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                              <option value={MANUAL_OPTION}>✏️ Trabajo manual (otro)</option>
+                            </select>
+                            {editType === MANUAL_OPTION && (
+                              <input
+                                type="text"
+                                value={editManualType}
+                                onChange={(e) => setEditManualType(e.target.value)}
+                                placeholder="Escribí el tipo de trabajo"
+                                autoFocus
+                                style={{ width: '100%', marginTop: '0.4rem', padding: '0.5rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)', fontSize: '0.85rem' }}
+                              />
+                            )}
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.2rem' }}>Notas para la imprenta</label>
+                            <textarea
+                              value={editNotes}
+                              onChange={(e) => setEditNotes(e.target.value)}
+                              rows={3}
+                              style={{ width: '100%', padding: '0.5rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)', fontFamily: 'inherit', fontSize: '0.85rem', resize: 'vertical' }}
+                            />
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
+                            <button
+                              onClick={cancelEdit}
+                              disabled={savingEdit}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.45rem 0.8rem', borderRadius: 'var(--radius)', backgroundColor: 'var(--background)', color: 'var(--foreground)', border: '1px solid var(--border)', fontWeight: 500, fontSize: '0.78rem', cursor: savingEdit ? 'not-allowed' : 'pointer' }}
+                            >
+                              <X size={13} /> Cancelar
+                            </button>
+                            <button
+                              onClick={() => saveEdit(job.id)}
+                              disabled={savingEdit}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.45rem 0.8rem', borderRadius: 'var(--radius)', backgroundColor: 'var(--primary)', color: 'white', border: 'none', fontWeight: 600, fontSize: '0.78rem', cursor: savingEdit ? 'not-allowed' : 'pointer', opacity: savingEdit ? 0.7 : 1 }}
+                            >
+                              <Save size={13} /> {savingEdit ? 'Guardando...' : 'Guardar'}
+                            </button>
+                          </div>
                         </div>
-                        <button
-                          onClick={() => handleDelete(job)}
-                          disabled={deletingId === job.id}
-                          style={{
-                            background: 'rgba(239,68,68,0.08)',
-                            color: '#ef4444',
-                            border: '1px solid rgba(239,68,68,0.25)',
-                            borderRadius: 'var(--radius)',
-                            padding: '0.3rem 0.5rem',
-                            cursor: deletingId === job.id ? 'not-allowed' : 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            opacity: deletingId === job.id ? 0.6 : 1,
-                          }}
-                          title="Eliminar trabajo"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
+                      ) : (
+                        /* ── Vista normal ── */
+                        <>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <h5 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '0.2rem' }}>{job.name}</h5>
+                              <span style={{ fontSize: '0.7rem', color: '#b45309', backgroundColor: 'rgba(245,158,11,0.12)', padding: '0.1rem 0.5rem', borderRadius: '999px', fontWeight: 600 }}>
+                                📖 {job.photobookType}
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.3rem', flexShrink: 0 }}>
+                              <button
+                                onClick={() => startEdit(job)}
+                                style={{
+                                  background: 'rgba(59,130,246,0.08)',
+                                  color: '#1d4ed8',
+                                  border: '1px solid rgba(59,130,246,0.25)',
+                                  borderRadius: 'var(--radius)',
+                                  padding: '0.3rem 0.5rem',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                }}
+                                title="Editar trabajo"
+                              >
+                                <Pencil size={13} />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(job)}
+                                disabled={deletingId === job.id}
+                                style={{
+                                  background: 'rgba(239,68,68,0.08)',
+                                  color: '#ef4444',
+                                  border: '1px solid rgba(239,68,68,0.25)',
+                                  borderRadius: 'var(--radius)',
+                                  padding: '0.3rem 0.5rem',
+                                  cursor: deletingId === job.id ? 'not-allowed' : 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  opacity: deletingId === job.id ? 0.6 : 1,
+                                }}
+                                title="Eliminar trabajo"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
 
-                      {job.notes && (
-                        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.4rem', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{job.notes}</p>
+                          {job.notes && (
+                            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.4rem', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{job.notes}</p>
+                          )}
+
+                          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.75rem', alignItems: 'center' }}>
+                            {job.pdfUrl && (
+                              <a
+                                href={job.pdfUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem',
+                                  padding: '0.35rem 0.65rem',
+                                  borderRadius: 'var(--radius)',
+                                  backgroundColor: 'rgba(59,130,246,0.1)',
+                                  color: '#1d4ed8',
+                                  border: '1px solid rgba(59,130,246,0.3)',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 600,
+                                  textDecoration: 'none',
+                                }}
+                              >
+                                <FileText size={11} /> PDF <ExternalLink size={10} style={{ opacity: 0.6 }} />
+                              </a>
+                            )}
+
+                            <select
+                              value={job.status || 'pending'}
+                              onChange={(e) => handleChangeStatus(job.id, e.target.value as JobStatus)}
+                              style={{
+                                marginLeft: 'auto',
+                                padding: '0.3rem 0.55rem',
+                                borderRadius: 'var(--radius)',
+                                border: `1px solid ${colors.border}`,
+                                backgroundColor: colors.chipBg,
+                                color: colors.color,
+                                fontSize: '0.72rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <option value="pending">⚪ Pendiente</option>
+                              <option value="done">✅ Realizado</option>
+                              <option value="paid">💵 Cobrado</option>
+                            </select>
+                          </div>
+                        </>
                       )}
-
-                      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.75rem', alignItems: 'center' }}>
-                        {job.pdfUrl && (
-                          <a
-                            href={job.pdfUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.3rem',
-                              padding: '0.35rem 0.65rem',
-                              borderRadius: 'var(--radius)',
-                              backgroundColor: 'rgba(59,130,246,0.1)',
-                              color: '#1d4ed8',
-                              border: '1px solid rgba(59,130,246,0.3)',
-                              fontSize: '0.72rem',
-                              fontWeight: 600,
-                              textDecoration: 'none',
-                            }}
-                          >
-                            <FileText size={11} /> PDF <ExternalLink size={10} style={{ opacity: 0.6 }} />
-                          </a>
-                        )}
-
-                        <select
-                          value={job.status || 'pending'}
-                          onChange={(e) => handleChangeStatus(job.id, e.target.value as JobStatus)}
-                          style={{
-                            marginLeft: 'auto',
-                            padding: '0.3rem 0.55rem',
-                            borderRadius: 'var(--radius)',
-                            border: `1px solid ${colors.border}`,
-                            backgroundColor: colors.chipBg,
-                            color: colors.color,
-                            fontSize: '0.72rem',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <option value="pending">⚪ Pendiente</option>
-                          <option value="done">✅ Realizado</option>
-                          <option value="paid">💵 Cobrado</option>
-                        </select>
-                      </div>
                     </div>
                   ))}
                 </div>
