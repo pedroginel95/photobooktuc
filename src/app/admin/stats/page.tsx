@@ -208,6 +208,7 @@ export default function StatsPanel() {
           status: recordStatus,
           userId: userDoc.id,
           linkedClientId: userDoc.id,
+          designerPaid: u.designerPaid || false,
           source: 'auto',
           createdAt: Timestamp.now(),
         });
@@ -370,6 +371,19 @@ export default function StatsPanel() {
   ) => {
     try {
       await updateDoc(doc(db, 'salesRecords', id), { [field]: value });
+      // El pago al diseñador es el mismo concepto que el del directorio: reflejarlo
+      // en el doc del cliente para que ambos lados queden sincronizados.
+      if (field === 'designerPaid') {
+        const rec = records.find(r => r.id === id);
+        const clientId = rec?.linkedClientId || rec?.userId;
+        if (clientId) {
+          try {
+            await updateDoc(doc(db, 'users', clientId), { designerPaid: value as boolean });
+          } catch {
+            // Registro manual sin cliente vinculado, o cliente inexistente. Ignorar.
+          }
+        }
+      }
     } catch (err) {
       console.error('Error actualizando registro:', err);
     }

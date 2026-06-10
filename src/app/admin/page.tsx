@@ -85,6 +85,14 @@ export default function AdminDirectory() {
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, designerPaid: newValue } : u));
     try {
       await updateDoc(doc(db, 'users', userId), { designerPaid: newValue });
+      // Reflejar el cambio en el registro de estadísticas del cliente (mismo concepto).
+      // El id del registro es determinístico: `client-{userId}`. Si todavía no existe
+      // (cliente no sincronizado), se ignora; al sincronizar tomará el valor del usuario.
+      try {
+        await updateDoc(doc(db, 'salesRecords', `client-${userId}`), { designerPaid: newValue });
+      } catch {
+        // El registro puede no existir todavía. No es un error.
+      }
     } catch (error) {
       console.error("Error actualizando pago al diseñador:", error);
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, designerPaid: current } : u));
