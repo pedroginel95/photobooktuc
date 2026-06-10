@@ -281,6 +281,44 @@ export default function StatsPanel() {
     }
   };
 
+  // Backfill: copia el "pagado al diseñador" del doc del cliente a su registro
+  // de venta. Sirve para los clientes que ya tenían el check antes de que ambos
+  // lados quedaran sincronizados. Sólo toca el campo designerPaid.
+  const backfillDesignerPaid = async () => {
+    setSyncing(true);
+    setSyncMsg('Sincronizando pago al diseñador...');
+    try {
+      const usersSnap = await getDocs(collection(db, 'users'));
+      const paidByUser: Record<string, boolean> = {};
+      usersSnap.forEach(d => { paidByUser[d.id] = !!d.data().designerPaid; });
+
+      const recordsSnap = await getDocs(collection(db, 'salesRecords'));
+      let updated = 0;
+
+      for (const rDoc of recordsSnap.docs) {
+        if (rDoc.id === DISMISSED_DOC_ID) continue;
+        const data = rDoc.data();
+        const clientId = data.linkedClientId || data.userId;
+        if (!clientId) continue; // registro manual sin cliente vinculado
+        const target = paidByUser[clientId];
+        if (target === undefined) continue; // el cliente ya no existe
+        if (!!data.designerPaid !== target) {
+          await updateDoc(doc(db, 'salesRecords', rDoc.id), { designerPaid: target });
+          updated++;
+        }
+      }
+
+      setSyncMsg(updated > 0 ? `✓ ${updated} pago(s) sincronizado(s)` : '✓ Pagos al día');
+      setTimeout(() => setSyncMsg(''), 3500);
+    } catch (err) {
+      console.error('Error sincronizando pago al diseñador:', err);
+      setSyncMsg('Error al sincronizar pagos');
+      setTimeout(() => setSyncMsg(''), 3500);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   // ── Filtrado ──
   const filtered = useMemo(() => {
     const fromTs = dateFrom ? new Date(dateFrom + 'T00:00:00').getTime() / 1000 : 0;
@@ -485,6 +523,22 @@ export default function StatsPanel() {
             >
               <RotateCcw size={16} />
               Resincronizar estados
+            </button>
+            <button
+              onClick={backfillDesignerPaid}
+              disabled={syncing}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+                backgroundColor: 'var(--surface)', color: 'var(--foreground)',
+                border: '1px solid var(--border)',
+                padding: '0.6rem 1.1rem', borderRadius: 'var(--radius)', fontWeight: 600,
+                cursor: syncing ? 'not-allowed' : 'pointer', fontSize: '0.9rem',
+                opacity: syncing ? 0.6 : 1,
+              }}
+              title="Copiar el 'pagado al diseñador' del directorio a los registros de la tabla (para los que tenían el check de antes)"
+            >
+              <DollarSign size={16} />
+              Sincronizar pago diseñador
             </button>
             <button
               onClick={() => setShowAdd(true)}
