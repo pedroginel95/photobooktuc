@@ -93,6 +93,12 @@ function toDateInputValue(d: Date) {
   return new Date(d.getTime() - tzOffset).toISOString().slice(0, 10);
 }
 
+// Fecha corta para la tabla: dd/mm/aa (ej. 10/06/26), para ocupar menos ancho.
+function fmtShortDate(d: Date) {
+  const [yyyy, mm, dd] = toDateInputValue(d).split('-');
+  return `${dd}/${mm}/${yyyy.slice(2)}`;
+}
+
 export default function StatsPanel() {
   const [records, setRecords] = useState<SaleRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -684,11 +690,11 @@ export default function StatsPanel() {
         </div>
       ) : (
         <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem', minWidth: '900px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', minWidth: '760px' }}>
             <thead>
               <tr style={{ backgroundColor: 'var(--surface)', textAlign: 'left' }}>
-                {['Fecha', 'Cliente', 'Producto', 'Colecciones', 'Fotos', 'Unidades', 'Facturado', 'Costos', 'Ganancia', 'Estado', 'Dis. pagado', ''].map((h) => (
-                  <th key={h} style={{ padding: '0.7rem 0.8rem', fontWeight: 700, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
+                {['Fecha', 'Cliente', 'Producto', 'Cols.', 'Fotos', 'Unid.', 'Facturado', 'Costos', 'Ganancia', 'Estado', 'Dis.', ''].map((h) => (
+                  <th key={h} style={{ padding: '0.6rem 0.5rem', fontWeight: 700, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -699,21 +705,21 @@ export default function StatsPanel() {
                 const d = new Date((r.date?.seconds || 0) * 1000);
                 return (
                   <tr key={r.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '0.6rem 0.8rem', whiteSpace: 'nowrap' }}>{toDateInputValue(d).split('-').reverse().join('/')}</td>
-                    <td style={{ padding: '0.6rem 0.8rem', fontWeight: 600 }}>{r.clientName}</td>
-                    <td style={{ padding: '0.6rem 0.8rem' }}>
+                    <td style={{ padding: '0.55rem 0.5rem', whiteSpace: 'nowrap' }}>{fmtShortDate(d)}</td>
+                    <td style={{ padding: '0.55rem 0.5rem', fontWeight: 600 }}>{r.clientName}</td>
+                    <td style={{ padding: '0.55rem 0.5rem' }}>
                       <select
                         value={r.productType || ''}
                         onChange={(e) => handleUpdateField(r.id, 'productType', e.target.value)}
-                        style={{ padding: '0.25rem 0.4rem', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)', fontSize: '0.78rem', cursor: 'pointer', maxWidth: '140px' }}
+                        style={{ padding: '0.25rem 0.4rem', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)', fontSize: '0.76rem', cursor: 'pointer', maxWidth: '118px' }}
                       >
                         <option value="">—</option>
                         {PRODUCT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                       </select>
                     </td>
-                    <td style={{ padding: '0.6rem 0.8rem', textAlign: 'center' }}>{r.collectionsCount}</td>
-                    <td style={{ padding: '0.6rem 0.8rem', textAlign: 'center' }}>{r.photosCount}</td>
-                    <td style={{ padding: '0.6rem 0.8rem', textAlign: 'center' }}>
+                    <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center' }}>{r.collectionsCount}</td>
+                    <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center' }}>{r.photosCount}</td>
+                    <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center' }}>
                       <input
                         type="number"
                         min={1}
@@ -722,7 +728,7 @@ export default function StatsPanel() {
                         style={{ width: '50px', padding: '0.25rem', textAlign: 'center', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
                       />
                     </td>
-                    <td style={{ padding: '0.6rem 0.8rem', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '0.55rem 0.5rem', whiteSpace: 'nowrap' }}>
                       <input
                         type="number"
                         key={`price-${r.id}-${r.productType}-${r.booksCount}-${r.priceOverride ?? ''}`}
@@ -732,10 +738,10 @@ export default function StatsPanel() {
                           if (!isNaN(v) && v !== c.facturado) handleUpdateField(r.id, 'priceOverride', v);
                         }}
                         title="Editá para forzar el precio (ej. descuento)"
-                        style={{ width: '92px', padding: '0.25rem 0.4rem', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                        style={{ width: '76px', padding: '0.25rem 0.35rem', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
                       />
                     </td>
-                    <td style={{ padding: '0.6rem 0.8rem', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '0.55rem 0.5rem', whiteSpace: 'nowrap' }}>
                       <input
                         type="number"
                         key={`cost-${r.id}-${r.productType}-${r.booksCount}-${r.costOverride ?? ''}`}
@@ -745,11 +751,11 @@ export default function StatsPanel() {
                           if (!isNaN(v) && v !== c.costos) handleUpdateField(r.id, 'costOverride', v);
                         }}
                         title="Editá para forzar el costo"
-                        style={{ width: '92px', padding: '0.25rem 0.4rem', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: '#ef4444' }}
+                        style={{ width: '76px', padding: '0.25rem 0.35rem', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: '#ef4444' }}
                       />
                     </td>
-                    <td style={{ padding: '0.6rem 0.8rem', whiteSpace: 'nowrap', fontWeight: 700, color: '#16a34a' }}>{fmt(c.ganancia)}</td>
-                    <td style={{ padding: '0.6rem 0.8rem' }}>
+                    <td style={{ padding: '0.55rem 0.5rem', whiteSpace: 'nowrap', fontWeight: 700, color: '#16a34a' }}>{fmt(c.ganancia)}</td>
+                    <td style={{ padding: '0.55rem 0.5rem' }}>
                       <select
                         value={r.status}
                         onChange={(e) => handleUpdateField(r.id, 'status', e.target.value)}
@@ -760,7 +766,7 @@ export default function StatsPanel() {
                         <option value="finalized">Finalizado</option>
                       </select>
                     </td>
-                    <td style={{ padding: '0.6rem 0.8rem', textAlign: 'center' }}>
+                    <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center' }}>
                       <input
                         type="checkbox"
                         checked={!!r.designerPaid}
@@ -769,7 +775,7 @@ export default function StatsPanel() {
                         style={{ width: '17px', height: '17px', cursor: 'pointer', accentColor: '#16a34a' }}
                       />
                     </td>
-                    <td style={{ padding: '0.6rem 0.8rem' }}>
+                    <td style={{ padding: '0.55rem 0.5rem' }}>
                       <button onClick={() => handleDelete(r)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'inline-flex' }} title="Eliminar registro">
                         <Trash2 size={15} />
                       </button>
