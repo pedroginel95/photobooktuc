@@ -693,8 +693,8 @@ export default function StatsPanel() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', minWidth: '760px' }}>
             <thead>
               <tr style={{ backgroundColor: 'var(--surface)', textAlign: 'left' }}>
-                {['Fecha', 'Cliente', 'Producto', 'Cols.', 'Fotos', 'Unid.', 'Facturado', 'Costos', 'Ganancia', 'Estado', 'Dis.', ''].map((h) => (
-                  <th key={h} style={{ padding: '0.6rem 0.5rem', fontWeight: 700, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
+                {['Fecha', 'Cliente', 'Producto', 'Colecciones', 'Fotos', 'Unidades', 'Facturado', 'Costos', 'Ganancia', 'Estado', 'Diseñador\npagado', ''].map((h) => (
+                  <th key={h} style={{ padding: '0.55rem 0.55rem', fontWeight: 700, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', whiteSpace: 'pre-line', verticalAlign: 'bottom', lineHeight: 1.2 }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -703,10 +703,16 @@ export default function StatsPanel() {
                 const c = calcRecord(r);
                 const sc = STATUS_COLOR[r.status] || STATUS_COLOR.pending;
                 const d = new Date((r.date?.seconds || 0) * 1000);
+                // Nombre en dos renglones (nombre arriba, apellido/resto abajo)
+                // para que la columna ocupe menos ancho.
+                const nameParts = (r.clientName || '').trim().split(/\s+/);
+                const nameDisplay = nameParts.length > 1
+                  ? `${nameParts[0]}\n${nameParts.slice(1).join(' ')}`
+                  : (r.clientName || '');
                 return (
                   <tr key={r.id} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '0.55rem 0.5rem', whiteSpace: 'nowrap' }}>{fmtShortDate(d)}</td>
-                    <td style={{ padding: '0.55rem 0.5rem', fontWeight: 600 }}>{r.clientName}</td>
+                    <td style={{ padding: '0.55rem 0.5rem', fontWeight: 600, whiteSpace: 'pre-line', lineHeight: 1.2 }}>{nameDisplay}</td>
                     <td style={{ padding: '0.55rem 0.5rem' }}>
                       <select
                         value={r.productType || ''}
