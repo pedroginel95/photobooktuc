@@ -334,10 +334,10 @@ export default function StatsPanel() {
       const t = r.date?.seconds || 0;
       if (t < fromTs || t > toTs) return false;
       if (statusFilter !== 'all' && r.status !== statusFilter) return false;
-      if (nameTerm && !r.clientName.toLowerCase().includes(nameTerm)) return false;
+      if (nameTerm && !(r.clientName || '').toLowerCase().includes(nameTerm)) return false;
       return true;
     });
-  }, [records, dateFrom, dateTo, statusFilter]);
+  }, [records, dateFrom, dateTo, statusFilter, searchName]);
 
   // ── Totales ──
   const totals = useMemo(() => {
@@ -665,7 +665,7 @@ export default function StatsPanel() {
           <Search size={15} style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
           <input
             type="text"
-            placeholder="Buscar por nombre..."
+            placeholder="Buscar por cliente..."
             value={searchName}
             onChange={(e) => setSearchName(e.target.value)}
             style={{
