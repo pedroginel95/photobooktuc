@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef, use } from 'react';
 import { doc, getDoc, collection, getDocs, query, orderBy, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { DownloadCloud, ArrowLeft, Image as ImageIcon, Folder, Trash2, Archive, ArchiveRestore, Eye, EyeOff, Pencil, Save, X, Copy, Check, ChevronLeft, ChevronRight, Sparkles, StickyNote, Lock, CheckSquare, Square, DollarSign } from 'lucide-react';
+import { DownloadCloud, ArrowLeft, Image as ImageIcon, Folder, Trash2, Archive, ArchiveRestore, Eye, EyeOff, Pencil, Save, X, Copy, Check, ChevronLeft, ChevronRight, Sparkles, StickyNote, Lock, CheckSquare, Square, DollarSign, ArrowUpDown, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, GripVertical } from 'lucide-react';
 import Link from 'next/link';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
@@ -23,6 +23,7 @@ interface UserData {
 interface PhotoData {
   id: string;
   url: string;
+  thumbUrl?: string;
   filename: string;
 }
 
@@ -35,6 +36,14 @@ interface CollectionData {
   designerPaid?: boolean;
   clientNote?: string;
 }
+
+// Botones chicos de la barra de control al reordenar fotos.
+const sortBtnStyle: React.CSSProperties = {
+  backgroundColor: 'rgba(255,255,255,0.2)',
+  color: 'white', border: 'none', borderRadius: '4px',
+  width: '24px', height: '24px', display: 'flex',
+  alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+};
 
 export default function ClientDetail({ params }: { params: Promise<{ uid: string }> }) {
   const resolvedParams = use(params);
@@ -57,6 +66,13 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
   const [lightbox, setLightbox] = useState<{ collectionId: string; index: number } | null>(null);
   const [copying, setCopying] = useState(false);
   const [copyOk, setCopyOk] = useState(false);
+
+  // Reordenar fotos de una colección (como admin)
+  const [sortingColId, setSortingColId] = useState<string | null>(null);
+  const [draftPhotos, setDraftPhotos] = useState<PhotoData[]>([]);
+  const [savingOrderId, setSavingOrderId] = useState<string | null>(null);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const touchDragIdx = useRef<number | null>(null);
 
   // Notas internas del admin (a nivel cliente)
   const [clientNotes, setClientNotes] = useState<string>('');
@@ -325,6 +341,48 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
       );
     } catch (error) {
       console.error("Error descartando indicador de nuevo pedido:", error);
+    }
+  };
+
+  // ── Reordenar fotos (admin) ──────────────────────────────────────────────────
+
+  const enterSortMode = (col: CollectionData) => {
+    setSortingColId(col.id);
+    setDraftPhotos([...col.photos]);
+    setDragIdx(null);
+  };
+
+  const cancelSortMode = () => {
+    setSortingColId(null);
+    setDraftPhotos([]);
+    setDragIdx(null);
+  };
+
+  const moveDraft = (from: number, to: number) => {
+    setDraftPhotos(prev => {
+      if (to < 0 || to >= prev.length || from === to) return prev;
+      const next = [...prev];
+      const [m] = next.splice(from, 1);
+      next.splice(to, 0, m);
+      return next;
+    });
+  };
+
+  const handleSaveOrder = async (col: CollectionData) => {
+    setSavingOrderId(col.id);
+    try {
+      const newOrder = draftPhotos.map(p => p.id);
+      await updateDoc(doc(db, `users/${uid}/collections`, col.id), { photoOrder: newOrder });
+      // Reflejar el nuevo orden en el estado local
+      const saved = draftPhotos;
+      setCollections(prev => prev.map(c => c.id === col.id ? { ...c, photos: saved } : c));
+      setSortingColId(null);
+      setDraftPhotos([]);
+    } catch (error) {
+      console.error('Error guardando el orden de fotos:', error);
+      alert('No se pudo guardar el orden de las fotos.');
+    } finally {
+      setSavingOrderId(null);
     }
   };
 
@@ -815,6 +873,30 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
                       {downloadingId === col.id ? `${downloadProgress}%` : 'Descargar'}
                     </button>
 
+                    {/* Ordenar fotos */}
+                    {col.photos.length > 1 && sortingColId !== col.id && (
+                      <button
+                        onClick={() => enterSortMode(col)}
+                        disabled={actionLoading === col.id}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          backgroundColor: 'var(--surface)',
+                          color: 'var(--foreground)',
+                          border: '1px solid var(--border)',
+                          padding: '0.5rem 1rem',
+                          borderRadius: 'var(--radius)',
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                          fontSize: '0.875rem',
+                        }}
+                        title="Reordenar las fotos de esta colección"
+                      >
+                        <ArrowUpDown size={16} /> Ordenar fotos
+                      </button>
+                    )}
+
                     {/* Archivar / Desarchivar */}
                     <button
                       onClick={() => handleArchiveCollection(col)}
@@ -912,6 +994,74 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
                     <ImageIcon size={32} style={{ margin: '0 auto 0.5rem', opacity: 0.5 }} />
                     <p style={{ fontSize: '0.875rem' }}>No hay fotos en esta colección.</p>
                   </div>
+                ) : sortingColId === col.id ? (
+                  <div>
+                    {/* Barra de modo ordenar */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem', padding: '0.75rem 1rem', backgroundColor: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 'var(--radius)' }}>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--foreground)', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <ArrowUpDown size={15} color="var(--primary)" /> Arrastrá las fotos o usá las flechas. Acordate de guardar el orden.
+                      </span>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          onClick={cancelSortMode}
+                          disabled={savingOrderId === col.id}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', borderRadius: 'var(--radius)', backgroundColor: 'var(--surface)', color: 'var(--foreground)', border: '1px solid var(--border)', fontWeight: 500, fontSize: '0.85rem', cursor: savingOrderId === col.id ? 'not-allowed' : 'pointer' }}
+                        >
+                          <X size={15} /> Cancelar
+                        </button>
+                        <button
+                          onClick={() => handleSaveOrder(col)}
+                          disabled={savingOrderId === col.id}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', borderRadius: 'var(--radius)', backgroundColor: 'var(--primary)', color: 'white', border: 'none', fontWeight: 600, fontSize: '0.85rem', cursor: savingOrderId === col.id ? 'not-allowed' : 'pointer', opacity: savingOrderId === col.id ? 0.7 : 1 }}
+                        >
+                          <Save size={15} /> {savingOrderId === col.id ? 'Guardando...' : 'Guardar orden'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className={styles.grid}>
+                      {draftPhotos.map((photo, idx) => (
+                        <div
+                          key={photo.id}
+                          className={styles.imageWrapper}
+                          data-sort-idx={idx}
+                          draggable
+                          onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDragIdx(idx); }}
+                          onDragOver={(e) => { if (dragIdx === null) return; e.preventDefault(); if (dragIdx === idx) return; moveDraft(dragIdx, idx); setDragIdx(idx); }}
+                          onDragEnd={() => setDragIdx(null)}
+                          onDrop={(e) => { e.preventDefault(); setDragIdx(null); }}
+                          onTouchStart={() => { touchDragIdx.current = idx; }}
+                          onTouchMove={(e) => {
+                            if (touchDragIdx.current === null) return;
+                            e.preventDefault();
+                            const t = e.touches[0];
+                            const el = document.elementFromPoint(t.clientX, t.clientY);
+                            const card = el?.closest('[data-sort-idx]') as HTMLElement | null;
+                            if (!card) return;
+                            const target = Number(card.getAttribute('data-sort-idx'));
+                            if (isNaN(target) || target === touchDragIdx.current) return;
+                            moveDraft(touchDragIdx.current, target);
+                            touchDragIdx.current = target;
+                          }}
+                          onTouchEnd={() => { touchDragIdx.current = null; }}
+                          style={{ cursor: 'grab', border: '2px solid var(--primary)', opacity: dragIdx === idx ? 0.4 : 1, touchAction: 'none', position: 'relative' }}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={photo.thumbUrl || photo.url} alt={photo.filename} className={styles.image} loading="lazy" decoding="async" />
+                          <span style={{ position: 'absolute', top: '0.4rem', left: '0.4rem', backgroundColor: 'rgba(0,0,0,0.6)', color: 'white', fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.45rem', borderRadius: '999px', backdropFilter: 'blur(2px)' }}>
+                            {String(idx + 1).padStart(String(draftPhotos.length).length, '0')}
+                          </span>
+                          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.3rem 0.4rem', background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(2px)', gap: '0.2rem' }}>
+                            <button onClick={() => moveDraft(idx, 0)} disabled={idx === 0} title="Mover al inicio" style={{ ...sortBtnStyle, opacity: idx === 0 ? 0.3 : 1, cursor: idx === 0 ? 'not-allowed' : 'pointer' }}><ChevronsUp size={13} /></button>
+                            <button onClick={() => moveDraft(idx, idx - 1)} disabled={idx === 0} title="Subir una posición" style={{ ...sortBtnStyle, opacity: idx === 0 ? 0.3 : 1, cursor: idx === 0 ? 'not-allowed' : 'pointer' }}><ChevronUp size={13} /></button>
+                            <GripVertical size={13} color="rgba(255,255,255,0.5)" style={{ flexShrink: 0 }} />
+                            <button onClick={() => moveDraft(idx, idx + 1)} disabled={idx === draftPhotos.length - 1} title="Bajar una posición" style={{ ...sortBtnStyle, opacity: idx === draftPhotos.length - 1 ? 0.3 : 1, cursor: idx === draftPhotos.length - 1 ? 'not-allowed' : 'pointer' }}><ChevronDown size={13} /></button>
+                            <button onClick={() => moveDraft(idx, draftPhotos.length - 1)} disabled={idx === draftPhotos.length - 1} title="Mover al final" style={{ ...sortBtnStyle, opacity: idx === draftPhotos.length - 1 ? 0.3 : 1, cursor: idx === draftPhotos.length - 1 ? 'not-allowed' : 'pointer' }}><ChevronsDown size={13} /></button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 ) : (
                   <div className={styles.grid}>
                     {col.photos.map((photo, idx) => (
@@ -923,7 +1073,7 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
                         title="Click para ver completa"
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={photo.url} alt={photo.filename} className={styles.image} loading="lazy" />
+                        <img src={photo.thumbUrl || photo.url} alt={photo.filename} className={styles.image} loading="lazy" decoding="async" />
                         <span style={{
                           position: 'absolute',
                           top: '0.4rem',
