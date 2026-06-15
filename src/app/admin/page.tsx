@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Search, UserCheck, CheckCircle2, Circle, Folder, Archive, Users, PackageCheck, Sparkles, StickyNote, DollarSign } from 'lucide-react';
+import { Search, UserCheck, CheckCircle2, Circle, Folder, Archive, Users, PackageCheck, Sparkles, StickyNote, DollarSign, Clock } from 'lucide-react';
 import Link from 'next/link';
 
 interface UserData {
@@ -15,6 +15,7 @@ interface UserData {
   createdAt: string;
   photobookType?: string;
   clientStatus?: 'active' | 'done' | 'finalized';
+  clientStatusUpdatedAt?: { seconds: number };
   hasArchived?: boolean;
   hasNewOrder?: boolean;
   hasClientNote?: boolean;
@@ -37,6 +38,16 @@ const STATUS_COLORS: Record<ClientStatus, { bg: string; color: string; border: s
   done:      { bg: 'rgba(34,197,94,0.1)',         color: '#16a34a',           border: 'rgba(34,197,94,0.4)' },
   finalized: { bg: 'rgba(168,85,247,0.1)',        color: '#9333ea',           border: 'rgba(168,85,247,0.4)' },
 };
+
+// Fecha corta dd/mm/aa a partir de un Timestamp de Firestore.
+function fmtStatusDate(ts?: { seconds: number }) {
+  if (!ts?.seconds) return '';
+  const d = new Date(ts.seconds * 1000);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yy = String(d.getFullYear()).slice(2);
+  return `${dd}/${mm}/${yy}`;
+}
 
 export default function AdminDirectory() {
   const [users, setUsers] = useState<UserData[]>([]);
@@ -68,9 +79,10 @@ export default function AdminDirectory() {
   const handleChangeStatus = async (userId: string, newStatus: ClientStatus) => {
     setTogglingId(userId);
     try {
-      await updateDoc(doc(db, 'users', userId), { clientStatus: newStatus });
+      const now = Timestamp.now();
+      await updateDoc(doc(db, 'users', userId), { clientStatus: newStatus, clientStatusUpdatedAt: now });
       setUsers(prev =>
-        prev.map(u => u.id === userId ? { ...u, clientStatus: newStatus } : u)
+        prev.map(u => u.id === userId ? { ...u, clientStatus: newStatus, clientStatusUpdatedAt: now } : u)
       );
     } catch (error) {
       console.error("Error actualizando estado:", error);
@@ -314,35 +326,41 @@ export default function AdminDirectory() {
               })()}
             </div>
 
-            {/* Dropdown de estado */}
-            <select
-              value={status}
-              disabled={togglingId === user.id}
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-              onChange={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleChangeStatus(user.id, e.target.value as ClientStatus);
-              }}
-              style={{
-                flexShrink: 0,
-                padding: '0.45rem 0.6rem',
-                borderRadius: 'var(--radius)',
-                fontSize: '0.78rem',
-                fontWeight: 600,
-                cursor: togglingId === user.id ? 'not-allowed' : 'pointer',
-                border: `1px solid ${colors.border}`,
-                backgroundColor: colors.bg,
-                color: colors.color,
-                transition: 'all 0.2s',
-                opacity: togglingId === user.id ? 0.5 : 1,
-                minWidth: '155px',
-              }}
-            >
-              <option value="active" style={{ backgroundColor: 'var(--surface)', color: 'var(--foreground)' }}>⚪ Pendiente</option>
-              <option value="done" style={{ backgroundColor: 'var(--surface)', color: 'var(--foreground)' }}>✅ Realizado</option>
-              <option value="finalized" style={{ backgroundColor: 'var(--surface)', color: 'var(--foreground)' }}>📦 Pedido Finalizado</option>
-            </select>
+            {/* Dropdown de estado + fecha del último cambio */}
+            <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.3rem' }}>
+              <select
+                value={status}
+                disabled={togglingId === user.id}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onChange={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleChangeStatus(user.id, e.target.value as ClientStatus);
+                }}
+                style={{
+                  padding: '0.45rem 0.6rem',
+                  borderRadius: 'var(--radius)',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  cursor: togglingId === user.id ? 'not-allowed' : 'pointer',
+                  border: `1px solid ${colors.border}`,
+                  backgroundColor: colors.bg,
+                  color: colors.color,
+                  transition: 'all 0.2s',
+                  opacity: togglingId === user.id ? 0.5 : 1,
+                  minWidth: '155px',
+                }}
+              >
+                <option value="active" style={{ backgroundColor: 'var(--surface)', color: 'var(--foreground)' }}>⚪ Pendiente</option>
+                <option value="done" style={{ backgroundColor: 'var(--surface)', color: 'var(--foreground)' }}>✅ Realizado</option>
+                <option value="finalized" style={{ backgroundColor: 'var(--surface)', color: 'var(--foreground)' }}>📦 Pedido Finalizado</option>
+              </select>
+              {user.clientStatusUpdatedAt && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.68rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                  <Clock size={10} /> {fmtStatusDate(user.clientStatusUpdatedAt)}
+                </span>
+              )}
+            </div>
           </div>
         </Link>
       </div>

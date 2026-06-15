@@ -11,7 +11,7 @@ import Link from 'next/link';
 import {
   Briefcase, Plus, FileText, Trash2, ExternalLink,
   Circle, CheckCircle2, DollarSign, UploadCloud, X, StickyNote, ArrowLeft,
-  Pencil, Save
+  Pencil, Save, Clock
 } from 'lucide-react';
 
 interface PrintJob {
@@ -24,6 +24,17 @@ interface PrintJob {
   pdfStoragePath?: string;
   status: 'pending' | 'done' | 'paid';
   createdAt?: { seconds: number };
+  statusUpdatedAt?: { seconds: number };
+}
+
+// Fecha corta dd/mm/aa a partir de un Timestamp de Firestore.
+function fmtStatusDate(ts?: { seconds: number }) {
+  if (!ts?.seconds) return '';
+  const d = new Date(ts.seconds * 1000);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yy = String(d.getFullYear()).slice(2);
+  return `${dd}/${mm}/${yy}`;
 }
 
 type JobStatus = 'pending' | 'done' | 'paid';
@@ -195,7 +206,7 @@ export default function AdminJobsPanel() {
 
   const handleChangeStatus = async (jobId: string, newStatus: JobStatus) => {
     try {
-      await updateDoc(doc(db, 'printJobs', jobId), { status: newStatus });
+      await updateDoc(doc(db, 'printJobs', jobId), { status: newStatus, statusUpdatedAt: Timestamp.now() });
     } catch (err) {
       console.error('Error actualizando estado:', err);
     }
@@ -610,6 +621,12 @@ export default function AdminJobsPanel() {
                               <option value="paid">💵 Cobrado</option>
                             </select>
                           </div>
+
+                          {job.statusUpdatedAt && (
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+                              <Clock size={11} /> Estado actualizado: {fmtStatusDate(job.statusUpdatedAt)}
+                            </div>
+                          )}
                         </>
                       )}
                     </div>

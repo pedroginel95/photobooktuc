@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Briefcase, FileText, Circle, CheckCircle2, DollarSign, ExternalLink, StickyNote } from 'lucide-react';
+import { Briefcase, FileText, Circle, CheckCircle2, DollarSign, ExternalLink, StickyNote, Clock } from 'lucide-react';
 
 interface PrintJob {
   id: string;
@@ -14,9 +14,20 @@ interface PrintJob {
   pdfFilename: string;
   status: 'pending' | 'done' | 'paid';
   createdAt?: { seconds: number };
+  statusUpdatedAt?: { seconds: number };
 }
 
 type JobStatus = 'pending' | 'done' | 'paid';
+
+// Fecha corta dd/mm/aa a partir de un Timestamp de Firestore.
+function fmtStatusDate(ts?: { seconds: number }) {
+  if (!ts?.seconds) return '';
+  const d = new Date(ts.seconds * 1000);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yy = String(d.getFullYear()).slice(2);
+  return `${dd}/${mm}/${yy}`;
+}
 
 const STATUS_LABEL: Record<JobStatus, string> = {
   pending: 'Pendiente',
@@ -58,7 +69,7 @@ export default function ImprentaPanel() {
   const handleChangeStatus = async (jobId: string, newStatus: JobStatus) => {
     setUpdatingId(jobId);
     try {
-      await updateDoc(doc(db, 'printJobs', jobId), { status: newStatus });
+      await updateDoc(doc(db, 'printJobs', jobId), { status: newStatus, statusUpdatedAt: Timestamp.now() });
     } catch (error) {
       console.error('Error actualizando estado:', error);
       alert('No se pudo actualizar el estado.');
@@ -192,6 +203,12 @@ export default function ImprentaPanel() {
             </button>
           ))}
         </div>
+
+        {job.statusUpdatedAt && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+            <Clock size={11} /> Estado actualizado: {fmtStatusDate(job.statusUpdatedAt)}
+          </div>
+        )}
       </div>
     );
   };
