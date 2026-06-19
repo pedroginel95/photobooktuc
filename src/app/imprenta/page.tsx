@@ -69,7 +69,15 @@ export default function ImprentaPanel() {
   const handleChangeStatus = async (jobId: string, newStatus: JobStatus) => {
     setUpdatingId(jobId);
     try {
-      await updateDoc(doc(db, 'printJobs', jobId), { status: newStatus, statusUpdatedAt: Timestamp.now() });
+      try {
+        // Intento ideal: actualizar estado + fecha del cambio.
+        await updateDoc(doc(db, 'printJobs', jobId), { status: newStatus, statusUpdatedAt: Timestamp.now() });
+      } catch (innerErr) {
+        // Las reglas del rol imprenta pueden permitir cambiar SOLO 'status'.
+        // En ese caso reintentamos sin la fecha para no bloquear el cambio de estado.
+        console.warn('No se pudo guardar statusUpdatedAt; reintento solo con status:', innerErr);
+        await updateDoc(doc(db, 'printJobs', jobId), { status: newStatus });
+      }
     } catch (error) {
       console.error('Error actualizando estado:', error);
       alert('No se pudo actualizar el estado.');
