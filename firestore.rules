@@ -1,0 +1,50 @@
+// Reglas de seguridad de Firestore (copia versionada).
+//
+// IMPORTANTE: este archivo NO se despliega solo. Es la referencia en git de
+// lo que está publicado en Firebase Console. Si cambiás algo acá, hay que
+// pegarlo y publicarlo en:
+//   Firebase Console -> Firestore Database -> Reglas
+//   https://console.firebase.google.com/project/project-0e53c6ec-a59b-40b4-a2f/firestore/rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /users/{userId} {
+      // Permitir al usuario ver y modificar su propio perfil
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // Permitir a los administradores ver todo el perfil
+      allow read, write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+
+      // Permitir acceso a TODOS sus subdirectorios (collections y carpetas nested)
+      match /{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      }
+    }
+
+    // ── Trabajos de Imprenta ──
+    match /printJobs/{jobId} {
+      // Admins: control total
+      allow read, write: if request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+
+      // Imprenta: puede leer todos los trabajos
+      allow read: if request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isImprenta == true;
+
+      // Imprenta: puede actualizar solo "status" y la fecha de ese cambio
+      allow update: if request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isImprenta == true
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'statusUpdatedAt']);
+    }
+
+    // ── Registros de ventas (estadísticas) ──
+    match /salesRecords/{recordId} {
+      allow read, write: if request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+  }
+}
