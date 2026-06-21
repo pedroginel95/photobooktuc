@@ -94,6 +94,8 @@ export default function AdminJobsPanel() {
   const [costDateField, setCostDateField] = useState<'done' | 'paid'>('paid');
   const [costFrom, setCostFrom] = useState('');
   const [costTo, setCostTo] = useState('');
+  // Backfill temporal de fecha de realizado
+  const [backfilling, setBackfilling] = useState(false);
 
   // Formulario
   const [name, setName] = useState('');
@@ -251,6 +253,30 @@ export default function AdminJobsPanel() {
     } catch (err) {
       console.error('Error actualizando costo:', err);
       alert('No se pudo guardar el costo.');
+    }
+  };
+
+  // Backfill temporal: asigna 10/06/26 como fecha de realizado a los trabajos
+  // en estado "Realizado" que todavía no tienen doneAt.
+  const handleBackfillDoneDate = async () => {
+    const targets = jobs.filter(j => j.status === 'done' && !j.doneAt?.seconds);
+    if (targets.length === 0) {
+      alert('No hay trabajos en "Realizado" sin fecha.');
+      return;
+    }
+    if (!confirm(`Asignar 10/06/26 como fecha de realizado a ${targets.length} trabajo(s) sin fecha?`)) return;
+    setBackfilling(true);
+    try {
+      const ts = Timestamp.fromDate(new Date('2026-06-10T12:00:00'));
+      for (const j of targets) {
+        await updateDoc(doc(db, 'printJobs', j.id), { doneAt: ts });
+      }
+      alert(`Listo: ${targets.length} trabajo(s) actualizados.`);
+    } catch (err) {
+      console.error('Error en el backfill:', err);
+      alert('Hubo un error en el backfill.');
+    } finally {
+      setBackfilling(false);
     }
   };
 
@@ -755,6 +781,20 @@ export default function AdminJobsPanel() {
 
       {view === 'costs' && (
         <div>
+          {/* Herramienta temporal: backfill de fecha de realizado */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.25rem', padding: '0.75rem 1rem', backgroundColor: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 'var(--radius)' }}>
+            <span style={{ fontSize: '0.82rem', color: '#92400e' }}>
+              Herramienta única: asignar 10/06/26 como fecha de realizado a los trabajos en “Realizado” que no tengan fecha.
+            </span>
+            <button
+              onClick={handleBackfillDoneDate}
+              disabled={backfilling}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', borderRadius: 'var(--radius)', backgroundColor: '#b45309', color: 'white', border: 'none', fontWeight: 600, fontSize: '0.82rem', cursor: backfilling ? 'not-allowed' : 'pointer', opacity: backfilling ? 0.7 : 1, whiteSpace: 'nowrap' }}
+            >
+              <Calendar size={15} /> {backfilling ? 'Aplicando...' : 'Asignar 10/06/26'}
+            </button>
+          </div>
+
           {/* Filtros de costos */}
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
             <div>
