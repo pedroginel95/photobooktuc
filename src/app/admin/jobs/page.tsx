@@ -307,21 +307,26 @@ export default function AdminJobsPanel() {
   };
 
   // ── Sección de costos: filtrar por fecha de realizado o cobrado ──
+  // Fecha relevante del trabajo según el filtro. Si no tiene doneAt/paidAt
+  // (trabajos previos a registrar esas fechas) pero ya está en ese estado,
+  // usamos statusUpdatedAt como aproximación para que igual aparezca.
+  const jobDateSec = (j: PrintJob): number | undefined => {
+    if (costDateField === 'done') {
+      return j.doneAt?.seconds ?? (j.status === 'done' ? j.statusUpdatedAt?.seconds : undefined);
+    }
+    return j.paidAt?.seconds ?? (j.status === 'paid' ? j.statusUpdatedAt?.seconds : undefined);
+  };
   const costFromTs = costFrom ? new Date(costFrom + 'T00:00:00').getTime() / 1000 : 0;
   const costToTs = costTo ? new Date(costTo + 'T23:59:59').getTime() / 1000 : Infinity;
   const costJobs = jobs
     .filter(j => {
-      const ts = costDateField === 'done' ? j.doneAt : j.paidAt;
-      if (!ts?.seconds) return false;
-      if (ts.seconds < costFromTs || ts.seconds > costToTs) return false;
+      const sec = jobDateSec(j);
+      if (sec === undefined) return false;
+      if (sec < costFromTs || sec > costToTs) return false;
       if (searchTerm && !(j.name || '').toLowerCase().includes(searchTerm)) return false;
       return true;
     })
-    .sort((a, b) => {
-      const ta = (costDateField === 'done' ? a.doneAt : a.paidAt)?.seconds || 0;
-      const tb = (costDateField === 'done' ? b.doneAt : b.paidAt)?.seconds || 0;
-      return tb - ta;
-    });
+    .sort((a, b) => (jobDateSec(b) || 0) - (jobDateSec(a) || 0));
   const costTotal = costJobs.reduce((sum, j) => sum + jobCost(j), 0);
 
   // Tipo efectivo para validar el formulario (manual usa el texto libre).
