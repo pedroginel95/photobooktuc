@@ -69,14 +69,22 @@ export default function ImprentaPanel() {
   const handleChangeStatus = async (jobId: string, newStatus: JobStatus) => {
     setUpdatingId(jobId);
     try {
+      const now = Timestamp.now();
+      const full: Record<string, unknown> = { status: newStatus, statusUpdatedAt: now };
+      if (newStatus === 'done') full.doneAt = now;
+      if (newStatus === 'paid') full.paidAt = now;
+      const ref = doc(db, 'printJobs', jobId);
+      // Intentos escalonados según lo que permitan las reglas del rol imprenta:
+      // 1) estado + todas las fechas; 2) estado + statusUpdatedAt; 3) solo estado.
       try {
-        // Intento ideal: actualizar estado + fecha del cambio.
-        await updateDoc(doc(db, 'printJobs', jobId), { status: newStatus, statusUpdatedAt: Timestamp.now() });
-      } catch (innerErr) {
-        // Las reglas del rol imprenta pueden permitir cambiar SOLO 'status'.
-        // En ese caso reintentamos sin la fecha para no bloquear el cambio de estado.
-        console.warn('No se pudo guardar statusUpdatedAt; reintento solo con status:', innerErr);
-        await updateDoc(doc(db, 'printJobs', jobId), { status: newStatus });
+        await updateDoc(ref, full);
+      } catch {
+        try {
+          await updateDoc(ref, { status: newStatus, statusUpdatedAt: now });
+        } catch (e2) {
+          console.warn('Reglas restringidas; guardando solo status:', e2);
+          await updateDoc(ref, { status: newStatus });
+        }
       }
     } catch (error) {
       console.error('Error actualizando estado:', error);

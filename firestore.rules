@@ -34,10 +34,10 @@ service cloud.firestore {
       allow read: if request.auth != null
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isImprenta == true;
 
-      // Imprenta: puede actualizar solo "status" y la fecha de ese cambio
+      // Imprenta: puede actualizar el estado y las fechas de ese cambio
       allow update: if request.auth != null
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isImprenta == true
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'statusUpdatedAt']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'statusUpdatedAt', 'doneAt', 'paidAt']);
     }
 
     // ── Registros de ventas (estadísticas) ──

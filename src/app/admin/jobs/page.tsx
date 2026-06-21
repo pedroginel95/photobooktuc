@@ -11,7 +11,7 @@ import Link from 'next/link';
 import {
   Briefcase, Plus, FileText, Trash2, ExternalLink,
   Circle, CheckCircle2, DollarSign, UploadCloud, X, StickyNote, ArrowLeft,
-  Pencil, Save, Clock
+  Pencil, Save, Clock, Search, Calendar
 } from 'lucide-react';
 
 interface PrintJob {
@@ -25,6 +25,9 @@ interface PrintJob {
   status: 'pending' | 'done' | 'paid';
   createdAt?: { seconds: number };
   statusUpdatedAt?: { seconds: number };
+  doneAt?: { seconds: number };   // fecha en que pasó a "Realizado"
+  paidAt?: { seconds: number };   // fecha en que pasó a "Cobrado"
+  costOverride?: number;          // costo forzado (trabajos especiales)
 }
 
 // Fecha corta dd/mm/aa a partir de un Timestamp de Firestore.
@@ -62,10 +65,35 @@ const PHOTOBOOK_TYPES = [
 // Valor centinela para "trabajo manual": habilita un campo de texto libre.
 const MANUAL_OPTION = '__manual__';
 
+// Costo por defecto según el tipo de producto. Los tipos no listados
+// (Tapa Blanda, trabajos manuales) arrancan en 0 y se fuerzan por trabajo.
+const COST_CONFIG: Record<string, number> = {
+  'A4 Tapa Dura': 23500,
+  'A5 Tapa Dura': 14000,
+  'Cuadro 30x40': 2000,
+};
+
+// Costo efectivo de un trabajo: el forzado si existe, si no el del tipo.
+function jobCost(job: PrintJob): number {
+  if (typeof job.costOverride === 'number') return job.costOverride;
+  return COST_CONFIG[job.photobookType] ?? 0;
+}
+
+const fmtMoney = (n: number) => '$' + Math.round(n).toLocaleString('es-AR');
+
 export default function AdminJobsPanel() {
   const [jobs, setJobs] = useState<PrintJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+
+  // Vista: trabajos o costos
+  const [view, setView] = useState<'jobs' | 'costs'>('jobs');
+  // Buscador por nombre (cliente)
+  const [searchJob, setSearchJob] = useState('');
+  // Filtro de la sección de costos
+  const [costDateField, setCostDateField] = useState<'done' | 'paid'>('paid');
+  const [costFrom, setCostFrom] = useState('');
+  const [costTo, setCostTo] = useState('');
 
   // Formulario
   const [name, setName] = useState('');
@@ -206,9 +234,23 @@ export default function AdminJobsPanel() {
 
   const handleChangeStatus = async (jobId: string, newStatus: JobStatus) => {
     try {
-      await updateDoc(doc(db, 'printJobs', jobId), { status: newStatus, statusUpdatedAt: Timestamp.now() });
+      const now = Timestamp.now();
+      const data: Record<string, unknown> = { status: newStatus, statusUpdatedAt: now };
+      // Registrar la fecha de cuando entra a Realizado / Cobrado.
+      if (newStatus === 'done') data.doneAt = now;
+      if (newStatus === 'paid') data.paidAt = now;
+      await updateDoc(doc(db, 'printJobs', jobId), data);
     } catch (err) {
       console.error('Error actualizando estado:', err);
+    }
+  };
+
+  const handleUpdateCost = async (jobId: string, value: number) => {
+    try {
+      await updateDoc(doc(db, 'printJobs', jobId), { costOverride: value });
+    } catch (err) {
+      console.error('Error actualizando costo:', err);
+      alert('No se pudo guardar el costo.');
     }
   };
 
@@ -252,15 +294,44 @@ export default function AdminJobsPanel() {
     }
   };
 
+  // Buscador por nombre del trabajo (cliente).
+  const searchTerm = searchJob.trim().toLowerCase();
+  const visibleJobs = searchTerm
+    ? jobs.filter(j => (j.name || '').toLowerCase().includes(searchTerm))
+    : jobs;
+
   const grouped: Record<JobStatus, PrintJob[]> = {
-    pending: jobs.filter(j => (j.status || 'pending') === 'pending'),
-    done:    jobs.filter(j => j.status === 'done'),
-    paid:    jobs.filter(j => j.status === 'paid'),
+    pending: visibleJobs.filter(j => (j.status || 'pending') === 'pending'),
+    done:    visibleJobs.filter(j => j.status === 'done'),
+    paid:    visibleJobs.filter(j => j.status === 'paid'),
   };
+
+  // ── Sección de costos: filtrar por fecha de realizado o cobrado ──
+  const costFromTs = costFrom ? new Date(costFrom + 'T00:00:00').getTime() / 1000 : 0;
+  const costToTs = costTo ? new Date(costTo + 'T23:59:59').getTime() / 1000 : Infinity;
+  const costJobs = jobs
+    .filter(j => {
+      const ts = costDateField === 'done' ? j.doneAt : j.paidAt;
+      if (!ts?.seconds) return false;
+      if (ts.seconds < costFromTs || ts.seconds > costToTs) return false;
+      if (searchTerm && !(j.name || '').toLowerCase().includes(searchTerm)) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const ta = (costDateField === 'done' ? a.doneAt : a.paidAt)?.seconds || 0;
+      const tb = (costDateField === 'done' ? b.doneAt : b.paidAt)?.seconds || 0;
+      return tb - ta;
+    });
+  const costTotal = costJobs.reduce((sum, j) => sum + jobCost(j), 0);
 
   // Tipo efectivo para validar el formulario (manual usa el texto libre).
   const effectiveType = photobookType === MANUAL_OPTION ? manualType.trim() : photobookType;
   const formInvalid = creating || !name.trim() || !effectiveType;
+
+  // Estilos de la tabla de costos
+  const costTh: React.CSSProperties = { padding: '0.6rem 0.7rem', fontWeight: 700, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' };
+  const costTd: React.CSSProperties = { padding: '0.55rem 0.7rem', whiteSpace: 'nowrap' };
+  const costFilterInput: React.CSSProperties = { padding: '0.5rem 0.6rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)', fontSize: '0.85rem', cursor: 'pointer' };
 
   return (
     <div>
@@ -274,6 +345,27 @@ export default function AdminJobsPanel() {
         <p style={{ color: 'var(--text-muted)' }}>Creá y gestioná los trabajos asignados a la imprenta.</p>
       </div>
 
+      {/* ── Tabs: Trabajos / Costos ── */}
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.75rem', backgroundColor: 'var(--surface)', padding: '0.4rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', width: 'fit-content' }}>
+        {([['jobs', 'Trabajos', <Briefcase size={16} key="b" />], ['costs', 'Costos', <DollarSign size={16} key="d" />]] as const).map(([key, label, icon]) => (
+          <button
+            key={key}
+            onClick={() => setView(key as 'jobs' | 'costs')}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+              padding: '0.55rem 1.15rem', borderRadius: 'var(--radius)', fontWeight: 600,
+              fontSize: '0.9rem', cursor: 'pointer', border: 'none',
+              backgroundColor: view === key ? 'var(--primary)' : 'transparent',
+              color: view === key ? 'white' : 'var(--text-muted)',
+            }}
+          >
+            {icon} {label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'jobs' && (
+      <>
       {/* ── Formulario crear trabajo ── */}
       <div style={{
         backgroundColor: 'var(--surface)',
@@ -424,9 +516,21 @@ export default function AdminJobsPanel() {
       </div>
 
       {/* ── Listado de trabajos por estado ── */}
-      <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border)' }}>
-        Trabajos ({jobs.length})
-      </h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border)' }}>
+        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>
+          Trabajos ({visibleJobs.length})
+        </h3>
+        <div style={{ position: 'relative', minWidth: '240px' }}>
+          <Search size={15} style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+          <input
+            type="text"
+            placeholder="Buscar por cliente..."
+            value={searchJob}
+            onChange={(e) => setSearchJob(e.target.value)}
+            style={{ width: '100%', padding: '0.5rem 0.75rem 0.5rem 2rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', backgroundColor: 'var(--surface)', color: 'var(--foreground)', fontSize: '0.9rem' }}
+          />
+        </div>
+      </div>
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Cargando trabajos...</div>
@@ -434,6 +538,10 @@ export default function AdminJobsPanel() {
         <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'var(--surface)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
           <Briefcase size={48} style={{ margin: '0 auto 1rem', opacity: 0.4 }} />
           <p style={{ color: 'var(--text-muted)' }}>Todavía no creaste ningún trabajo.</p>
+        </div>
+      ) : visibleJobs.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'var(--surface)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+          Sin resultados para “{searchJob}”.
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -635,6 +743,99 @@ export default function AdminJobsPanel() {
               </div>
             );
           })}
+        </div>
+      )}
+      </>
+      )}
+
+      {view === 'costs' && (
+        <div>
+          {/* Filtros de costos */}
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.3rem' }}>Filtrar por fecha de</label>
+              <select value={costDateField} onChange={(e) => setCostDateField(e.target.value as 'done' | 'paid')} style={costFilterInput}>
+                <option value="paid">Cobrado (finalizado)</option>
+                <option value="done">Realizado</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.3rem' }}>Desde</label>
+              <input type="date" value={costFrom} onChange={(e) => setCostFrom(e.target.value)} style={{ ...costFilterInput, cursor: 'text' }} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.3rem' }}>Hasta</label>
+              <input type="date" value={costTo} onChange={(e) => setCostTo(e.target.value)} style={{ ...costFilterInput, cursor: 'text' }} />
+            </div>
+            {(costFrom || costTo) && (
+              <button onClick={() => { setCostFrom(''); setCostTo(''); }} style={{ padding: '0.5rem 0.9rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', backgroundColor: 'var(--surface)', color: 'var(--foreground)', fontWeight: 500, fontSize: '0.85rem', cursor: 'pointer' }}>
+                Limpiar
+              </button>
+            )}
+            <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Costo total ({costJobs.length} trabajo{costJobs.length !== 1 ? 's' : ''})</div>
+              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#ef4444' }}>{fmtMoney(costTotal)}</div>
+            </div>
+          </div>
+
+          {costJobs.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'var(--surface)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+              <Calendar size={40} style={{ margin: '0 auto 1rem', opacity: 0.4 }} />
+              No hay trabajos con fecha de {costDateField === 'done' ? 'realizado' : 'cobrado'} en este período.
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', minWidth: '720px' }}>
+                <thead>
+                  <tr style={{ backgroundColor: 'var(--surface)', textAlign: 'left' }}>
+                    {['Cliente / Trabajo', 'Producto', 'Realizado', 'Cobrado', 'Costo', 'Estado'].map((h) => (
+                      <th key={h} style={costTh}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {costJobs.map((job) => {
+                    const st = (job.status || 'pending') as JobStatus;
+                    const sc = STATUS_COLOR[st];
+                    const forced = typeof job.costOverride === 'number';
+                    return (
+                      <tr key={job.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ ...costTd, fontWeight: 600 }}>{job.name}</td>
+                        <td style={costTd}>{job.photobookType}</td>
+                        <td style={costTd}>{job.doneAt ? fmtStatusDate(job.doneAt) : '—'}</td>
+                        <td style={costTd}>{job.paidAt ? fmtStatusDate(job.paidAt) : '—'}</td>
+                        <td style={costTd}>
+                          <span style={{ color: 'var(--text-muted)', marginRight: '0.2rem' }}>$</span>
+                          <input
+                            type="number"
+                            key={`cost-${job.id}-${job.costOverride ?? ''}`}
+                            defaultValue={jobCost(job)}
+                            onBlur={(e) => {
+                              const v = Number(e.target.value);
+                              if (!isNaN(v) && v !== jobCost(job)) handleUpdateCost(job.id, v);
+                            }}
+                            title={forced ? 'Costo forzado para este trabajo' : 'Costo por defecto del producto. Editalo para forzarlo.'}
+                            style={{ width: '90px', padding: '0.3rem 0.4rem', borderRadius: '6px', border: `1px solid ${forced ? 'rgba(245,158,11,0.55)' : 'var(--border)'}`, backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                          />
+                          {forced && <span style={{ marginLeft: '0.35rem', fontSize: '0.62rem', fontWeight: 700, color: '#b45309' }}>forzado</span>}
+                        </td>
+                        <td style={costTd}>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 600, padding: '0.15rem 0.55rem', borderRadius: '999px', color: sc.color, backgroundColor: sc.chipBg, border: `1px solid ${sc.border}` }}>
+                            {STATUS_LABEL[st]}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.9rem', lineHeight: 1.5 }}>
+            Costos por defecto: A4 Tapa Dura {fmtMoney(23500)} · A5 Tapa Dura {fmtMoney(14000)} · Cuadro 30x40 {fmtMoney(2000)}.
+            El resto (Tapa Blanda y trabajos manuales) arranca en {fmtMoney(0)}. Editá el costo de cualquier fila para forzarlo (queda marcado como “forzado”).
+          </p>
         </div>
       )}
     </div>
