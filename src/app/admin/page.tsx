@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, orderBy, doc, updateDoc, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { Search, UserCheck, CheckCircle2, Circle, Folder, Archive, Users, PackageCheck, Sparkles, StickyNote, DollarSign, Clock } from 'lucide-react';
+import { collection, onSnapshot, query, orderBy, doc, updateDoc, deleteDoc, getDocs, Timestamp } from 'firebase/firestore';
+import { ref, deleteObject } from 'firebase/storage';
+import { db, storage } from '@/lib/firebase';
+import { Search, UserCheck, CheckCircle2, Circle, Folder, Archive, Users, PackageCheck, Sparkles, StickyNote, DollarSign, Clock, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 
 interface UserData {
@@ -16,6 +17,7 @@ interface UserData {
   photobookType?: string;
   clientStatus?: 'active' | 'done' | 'finalized';
   clientStatusUpdatedAt?: { seconds: number };
+  readyToDesign?: boolean;
   hasArchived?: boolean;
   hasNewOrder?: boolean;
   hasClientNote?: boolean;
@@ -55,6 +57,7 @@ export default function AdminDirectory() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'directory' | 'archived'>('directory');
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
@@ -111,6 +114,47 @@ export default function AdminDirectory() {
     }
   };
 
+  const handleToggleReady = async (userId: string, current: boolean) => {
+    const newValue = !current;
+    // Update optimista
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, readyToDesign: newValue } : u));
+    try {
+      await updateDoc(doc(db, 'users', userId), { readyToDesign: newValue });
+    } catch (error) {
+      console.error("Error actualizando 'listo para diseñar':", error);
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, readyToDesign: current } : u));
+    }
+  };
+
+  const handleDeleteClient = async (user: UserData) => {
+    const label = `${user.name || ''} ${user.lastName || ''}`.trim() || user.email || 'este cliente';
+    if (!confirm(`¿Eliminar a "${label}"?\n\nSe borra su cuenta del directorio junto con TODAS sus colecciones y fotos. Esta acción no se puede deshacer.`)) return;
+    setDeletingId(user.id);
+    try {
+      // Borrar colecciones, fotos y archivos de Storage
+      const colsSnap = await getDocs(collection(db, `users/${user.id}/collections`));
+      for (const colDoc of colsSnap.docs) {
+        const photosSnap = await getDocs(collection(db, `users/${user.id}/collections/${colDoc.id}/photos`));
+        for (const p of photosSnap.docs) {
+          const pd = p.data();
+          try { await deleteObject(ref(storage, `users/${user.id}/${colDoc.id}/${p.id}-${pd.filename}`)); } catch {}
+          if (pd.thumbStoragePath) { try { await deleteObject(ref(storage, pd.thumbStoragePath as string)); } catch {} }
+          await deleteDoc(doc(db, `users/${user.id}/collections/${colDoc.id}/photos`, p.id));
+        }
+        await deleteDoc(doc(db, `users/${user.id}/collections`, colDoc.id));
+      }
+      // Borrar el registro de estadísticas si existe
+      try { await deleteDoc(doc(db, 'salesRecords', `client-${user.id}`)); } catch {}
+      // Borrar el documento del usuario (lo saca del directorio)
+      await deleteDoc(doc(db, 'users', user.id));
+    } catch (error) {
+      console.error("Error eliminando cliente:", error);
+      alert('No se pudo eliminar el cliente.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const matchesSearch = (user: UserData) => {
     const term = searchTerm.toLowerCase();
     return (
@@ -155,12 +199,15 @@ export default function AdminDirectory() {
       ? 'rgba(168,85,247,0.6)'
       : isDone ? 'rgba(34,197,94,0.6)' : 'var(--primary)';
 
+    // Verde suave si está listo para diseñar; rosa suave si todavía no.
+    const readyBg = user.readyToDesign ? 'rgba(34,197,94,0.10)' : 'rgba(244,114,182,0.10)';
+
     return (
       <div key={user.id} style={{ position: 'relative' }}>
         <Link
           href={`/admin/${user.id}`}
           style={{
-            backgroundColor: 'var(--surface)',
+            backgroundColor: readyBg,
             border: `1px solid ${cardBorder}`,
             borderRadius: 'var(--radius)',
             padding: '1.25rem 1.5rem',
@@ -291,6 +338,42 @@ export default function AdminDirectory() {
                 <DollarSign size={13} /> Pagado al diseñador
               </label>
 
+              {/* Checkbox interactivo: listo para empezar a diseñar */}
+              <label
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleToggleReady(user.id, !!user.readyToDesign);
+                }}
+                style={{
+                  marginTop: '0.5rem',
+                  marginLeft: '0.5rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  cursor: 'pointer',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  color: user.readyToDesign ? '#15803d' : '#9d2463',
+                  backgroundColor: user.readyToDesign ? 'rgba(34,197,94,0.12)' : 'rgba(244,114,182,0.14)',
+                  border: `1px solid ${user.readyToDesign ? 'rgba(34,197,94,0.45)' : 'rgba(244,114,182,0.45)'}`,
+                  borderRadius: 'var(--radius)',
+                  padding: '0.35rem 0.7rem',
+                  width: 'fit-content',
+                  transition: 'all 0.2s',
+                  userSelect: 'none',
+                }}
+                title={user.readyToDesign ? 'Listo para empezar a diseñar' : 'Marcar como listo para empezar a diseñar'}
+              >
+                <input
+                  type="checkbox"
+                  checked={!!user.readyToDesign}
+                  readOnly
+                  style={{ width: '15px', height: '15px', cursor: 'pointer', accentColor: '#16a34a', pointerEvents: 'none' }}
+                />
+                <CheckCircle2 size={13} /> Listo para diseñar
+              </label>
+
               {(() => {
                 const noteText = (user.adminNotes ?? user.aggregatedAdminNotes ?? '').trim();
                 if (!noteText) return null;
@@ -360,6 +443,32 @@ export default function AdminDirectory() {
                   <Clock size={10} /> {fmtStatusDate(user.clientStatusUpdatedAt)}
                 </span>
               )}
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleDeleteClient(user);
+                }}
+                disabled={deletingId === user.id}
+                style={{
+                  marginTop: '0.4rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  backgroundColor: 'rgba(239,68,68,0.08)',
+                  color: '#ef4444',
+                  border: '1px solid rgba(239,68,68,0.3)',
+                  borderRadius: 'var(--radius)',
+                  padding: '0.35rem 0.65rem',
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  cursor: deletingId === user.id ? 'not-allowed' : 'pointer',
+                  opacity: deletingId === user.id ? 0.6 : 1,
+                }}
+                title="Eliminar cliente del directorio (borra su cuenta y datos)"
+              >
+                <Trash2 size={12} /> {deletingId === user.id ? 'Eliminando...' : 'Eliminar'}
+              </button>
             </div>
           </div>
         </Link>
