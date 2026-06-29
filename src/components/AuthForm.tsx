@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import styles from './AuthForm.module.css';
@@ -16,8 +16,25 @@ export default function AuthForm() {
   const [whatsapp, setWhatsapp] = useState('');
   const [photobookType, setPhotobookType] = useState('');
   const [error, setError] = useState('');
+  const [resetMsg, setResetMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  const handleForgotPassword = async () => {
+    setError('');
+    setResetMsg('');
+    if (!email.trim()) {
+      setError('Escribí tu correo electrónico arriba y volvé a tocar el enlace.');
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      setResetMsg('Te enviamos un correo para restablecer tu contraseña. Revisá tu bandeja (y el spam).');
+    } catch (err: unknown) {
+      console.error(err);
+      setError('No se pudo enviar el correo. Verificá que el email sea correcto.');
+    }
+  };
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,6 +79,11 @@ export default function AuthForm() {
       </p>
 
       {error && <div className={styles.error}>{error}</div>}
+      {resetMsg && (
+        <div style={{ backgroundColor: 'rgba(34,197,94,0.12)', color: '#15803d', border: '1px solid rgba(34,197,94,0.4)', borderRadius: '8px', padding: '0.7rem 0.9rem', fontSize: '0.85rem', marginBottom: '1rem', lineHeight: 1.45 }}>
+          {resetMsg}
+        </div>
+      )}
 
       <form onSubmit={handleAuth} className={styles.form}>
         {!isLogin && (
@@ -160,6 +182,17 @@ export default function AuthForm() {
             required
           />
         </div>
+
+        {isLogin && (
+          <button
+            type="button"
+            onClick={handleForgotPassword}
+            className={styles.toggleLink}
+            style={{ alignSelf: 'flex-end', marginTop: '-0.4rem', fontSize: '0.85rem' }}
+          >
+            ¿Olvidaste tu contraseña?
+          </button>
+        )}
 
         <button type="submit" className={styles.button} disabled={loading}>
           {loading ? 'Procesando...' : isLogin ? 'Iniciar Sesión' : 'Registrarse'}
