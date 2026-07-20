@@ -14,9 +14,15 @@ import {
 import Link from 'next/link';
 
 interface UploadProgress {
+  id: string;        // id único del archivo (no el nombre: puede repetirse)
   filename: string;
   progress: number;
+  error?: boolean;
 }
+
+// Cuántas fotos se suben a la vez. Subir todas en paralelo agota memoria/red
+// (sobre todo en celulares, con conversión HEIC y generación de miniaturas).
+const UPLOAD_CONCURRENCY = 3;
 
 interface PhotoData {
   id: string;
@@ -155,89 +161,120 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
     }
   };
 
-  const handleUploads = (files: File[]) => {
+  // Sube UN archivo de punta a punta. Lanza si falla, para poder contarlo.
+  const uploadOne = async (uid: string, file: File, tempId: string) => {
+    const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif';
+    // Nombre final: si es HEIC lo guardamos como .jpg
+    const filename = isHeic ? file.name.replace(/\.(heic|heif)$/i, '.jpg') : file.name;
+
+    setUploads(prev => [...prev, { id: tempId, filename, progress: 0 }]);
+
+    try {
+      // 1) Convertir HEIC → JPEG si hace falta (si falla, se sube el original)
+      let blob: Blob = file;
+      if (isHeic) {
+        try {
+          const { default: heic2any } = await import('heic2any');
+          const converted = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
+          blob = (Array.isArray(converted) ? converted[0] : converted) as Blob;
+        } catch (err) {
+          console.error('Error convirtiendo HEIC, se sube el original:', err);
+          blob = file;
+        }
+      }
+
+      // 2) Subir el original con seguimiento de progreso
+      const storageRef = ref(storage, `users/${uid}/${collectionId}/${tempId}-${filename}`);
+      const uploadTask = uploadBytesResumable(storageRef, blob);
+      await new Promise<void>((resolve, reject) => {
+        uploadTask.on('state_changed',
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setUploads(prev => prev.map(u => u.id === tempId ? { ...u, progress } : u));
+          },
+          (err) => reject(err),
+          () => resolve()
+        );
+      });
+      const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+
+      // 3) Miniatura liviana SOLO para el preview. Si falla, seguimos sin ella.
+      let thumbUrl = '';
+      let thumbStoragePath = '';
+      try {
+        const thumbBlob = await makeThumbnail(blob);
+        thumbStoragePath = `users/${uid}/${collectionId}/thumbs/${tempId}-${filename}`;
+        const thumbRef = ref(storage, thumbStoragePath);
+        await uploadBytes(thumbRef, thumbBlob);
+        thumbUrl = await getDownloadURL(thumbRef);
+      } catch (err) {
+        console.error('No se pudo generar la miniatura:', err);
+        thumbStoragePath = '';
+      }
+
+      // 4) Registrar la foto
+      await setDoc(doc(db, `users/${uid}/collections/${collectionId}/photos`, tempId), {
+        filename,
+        url: downloadURL,
+        thumbUrl,
+        thumbStoragePath,
+        createdAt: Timestamp.now()
+      });
+
+      setTimeout(() => {
+        setUploads(prev => prev.filter(u => u.id !== tempId));
+      }, 1200);
+    } catch (err) {
+      // La dejamos visible marcada como error para que la clienta lo vea.
+      console.error(`Falló la subida de "${filename}":`, err);
+      setUploads(prev => prev.map(u => u.id === tempId ? { ...u, error: true } : u));
+      throw err;
+    }
+  };
+
+  const handleUploads = async (files: File[]) => {
     if (!user) return;
+    const uid = user.uid;
 
     if (photos.length + files.length > 160) {
       alert(`No puedes subir más de 160 fotos por colección. Actualmente tienes ${photos.length} fotos, e intentas subir ${files.length} más.`);
       return;
     }
 
+    // Limpiar errores de intentos anteriores
+    setUploads(prev => prev.filter(u => !u.error));
+
     const batchTs = Date.now();
+    const items = files.map((file, idx) => ({
+      file,
+      tempId: `${batchTs}-${idx}-${Math.random().toString(36).slice(2, 12)}`,
+    }));
 
-    files.forEach((file, idx) => {
-      const tempId = `${batchTs}-${idx}-${Math.random().toString(36).slice(2, 12)}`;
-      const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif';
-      // Nombre final: si es HEIC lo guardamos como .jpg
-      const filename = isHeic
-        ? file.name.replace(/\.(heic|heif)$/i, '.jpg')
-        : file.name;
-
-      setUploads(prev => [...prev, { filename, progress: 0 }]);
-
-      const doUpload = (blob: Blob) => {
-        const storageRef = ref(storage, `users/${user!.uid}/${collectionId}/${tempId}-${filename}`);
-        const uploadTask = uploadBytesResumable(storageRef, blob);
-
-        uploadTask.on('state_changed',
-          (snapshot) => {
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            setUploads(prev => prev.map(u => u.filename === filename ? { ...u, progress } : u));
-          },
-          (error) => {
-            console.error("Upload failed", error);
-            setUploads(prev => prev.filter(u => u.filename !== filename));
-          },
-          async () => {
-            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-
-            // Miniatura liviana SOLO para el preview (el original ya quedó subido full-res).
-            // Si algo falla, seguimos sin miniatura y el preview usa el original como fallback.
-            let thumbUrl = '';
-            let thumbStoragePath = '';
-            try {
-              const thumbBlob = await makeThumbnail(blob);
-              thumbStoragePath = `users/${user!.uid}/${collectionId}/thumbs/${tempId}-${filename}`;
-              const thumbRef = ref(storage, thumbStoragePath);
-              await uploadBytes(thumbRef, thumbBlob);
-              thumbUrl = await getDownloadURL(thumbRef);
-            } catch (err) {
-              console.error('No se pudo generar la miniatura:', err);
-              thumbStoragePath = '';
-            }
-
-            await setDoc(doc(db, `users/${user!.uid}/collections/${collectionId}/photos`, tempId), {
-              filename,
-              url: downloadURL,
-              thumbUrl,
-              thumbStoragePath,
-              createdAt: Timestamp.now()
-            });
-            setTimeout(() => {
-              setUploads(prev => prev.filter(u => u.filename !== filename));
-            }, 1500);
-          }
-        );
-      };
-
-      if (isHeic) {
-        // Convertir HEIC → JPEG en el browser antes de subir
-        import('heic2any').then(({ default: heic2any }) => {
-          heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 })
-            .then((converted) => {
-              const jpeg = Array.isArray(converted) ? converted[0] : converted;
-              doUpload(jpeg);
-            })
-            .catch((err) => {
-              console.error('Error convirtiendo HEIC:', err);
-              // Si falla la conversión, subimos el archivo original igual
-              doUpload(file);
-            });
-        });
-      } else {
-        doUpload(file);
+    // Cola con concurrencia limitada: varios "workers" toman de a un archivo.
+    let cursor = 0;
+    let failed = 0;
+    const worker = async () => {
+      while (cursor < items.length) {
+        const { file, tempId } = items[cursor++];
+        try {
+          await uploadOne(uid, file, tempId);
+        } catch {
+          failed++;
+        }
       }
-    });
+    };
+
+    await Promise.all(
+      Array.from({ length: Math.min(UPLOAD_CONCURRENCY, items.length) }, worker)
+    );
+
+    if (failed > 0) {
+      alert(
+        `${failed} de ${items.length} foto${items.length !== 1 ? 's' : ''} no se pudieron subir.\n\n` +
+        `Quedaron marcadas en rojo en la lista. Volvé a seleccionarlas para reintentar; ` +
+        `las que ya subieron no se duplican.`
+      );
+    }
   };
 
   // ── Ordenar ─────────────────────────────────────────────────────────────────
@@ -522,15 +559,28 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
 
       {uploads.length > 0 && (
         <div className={styles.progressList}>
-          {uploads.map((upload, idx) => (
-            <div key={idx} className={styles.progressItem}>
+          {uploads.map((upload) => (
+            <div key={upload.id} className={styles.progressItem}>
               <div className={styles.progressHeader}>
                 <span className={styles.filename}>{upload.filename}</span>
-                <span className={styles.percentage}>{Math.round(upload.progress)}%</span>
+                <span className={styles.percentage} style={upload.error ? { color: '#ef4444', fontWeight: 700 } : undefined}>
+                  {upload.error ? 'Error' : `${Math.round(upload.progress)}%`}
+                </span>
               </div>
               <div className={styles.progressBarContainer}>
-                <div className={styles.progressBar} style={{ width: `${upload.progress}%` }} />
+                <div
+                  className={styles.progressBar}
+                  style={{
+                    width: upload.error ? '100%' : `${upload.progress}%`,
+                    backgroundColor: upload.error ? '#ef4444' : undefined,
+                  }}
+                />
               </div>
+              {upload.error && (
+                <span style={{ fontSize: '0.72rem', color: '#ef4444' }}>
+                  No se pudo subir. Volvé a seleccionarla para reintentar.
+                </span>
+              )}
             </div>
           ))}
         </div>
