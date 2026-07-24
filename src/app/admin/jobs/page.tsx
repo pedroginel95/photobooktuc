@@ -70,7 +70,7 @@ const MANUAL_OPTION = '__manual__';
 const COST_CONFIG: Record<string, number> = {
   'A4 Tapa Dura': 23500,
   'A5 Tapa Dura': 14000,
-  'Cuadro 30x40': 2000,
+  'Cuadro 30x40': 1500,
 };
 
 // Costo efectivo de un trabajo: el forzado si existe, si no el del tipo.
@@ -838,7 +838,7 @@ export default function AdminJobsPanel() {
           )}
 
           <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.9rem', lineHeight: 1.5 }}>
-            Costos por defecto: A4 Tapa Dura {fmtMoney(23500)} · A5 Tapa Dura {fmtMoney(14000)} · Cuadro 30x40 {fmtMoney(2000)}.
+            Costos por defecto: A4 Tapa Dura {fmtMoney(23500)} · A5 Tapa Dura {fmtMoney(14000)} · Cuadro 30x40 {fmtMoney(1500)}.
             El resto (Tapa Blanda y trabajos manuales) arranca en {fmtMoney(0)}. Editá el costo de cualquier fila para forzarlo (queda marcado como “forzado”).
           </p>
         </div>
