@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   collection, onSnapshot, query, orderBy,
-  doc, setDoc, deleteDoc, updateDoc, Timestamp
+  doc, setDoc, deleteDoc, updateDoc, deleteField, Timestamp
 } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
@@ -27,7 +27,8 @@ interface PrintJob {
   statusUpdatedAt?: { seconds: number };
   doneAt?: { seconds: number };   // fecha en que pasó a "Realizado"
   paidAt?: { seconds: number };   // fecha en que pasó a "Cobrado"
-  costOverride?: number;          // costo forzado (trabajos especiales)
+  pages?: number;                 // páginas del archivo total (incluye la tapa)
+  costOverride?: number;          // costo total forzado (trabajos especiales)
 }
 
 // Fecha corta dd/mm/aa a partir de un Timestamp de Firestore.
@@ -65,18 +66,40 @@ const PHOTOBOOK_TYPES = [
 // Valor centinela para "trabajo manual": habilita un campo de texto libre.
 const MANUAL_OPTION = '__manual__';
 
-// Costo por defecto según el tipo de producto. Los tipos no listados
-// (Tapa Blanda, trabajos manuales) arrancan en 0 y se fuerzan por trabajo.
-const COST_CONFIG: Record<string, number> = {
-  'A4 Tapa Dura': 23500,
-  'A5 Tapa Dura': 14000,
-  'Cuadro 30x40': 1500,
+// Costo fijo de la tapa según el tipo.
+const COVER_COST: Record<string, number> = {
+  'A4 Tapa Blanda': 6500,
+  'A5 Tapa Blanda': 4500,
+  'A4 Tapa Dura': 8500,
+  'A5 Tapa Dura': 5000,
 };
+// Costo por página impresa según el tamaño.
+const pageRate = (type: string) => (type.includes('A4') ? 500 : type.includes('A5') ? 300 : 0);
+// El archivo total incluye 2 páginas de tapa que no se cuentan como impresión.
+const COVER_PAGES = 2;
+// Costo fijo del cuadro (no es un libro con tapa/páginas).
+const CUADRO_COST = 1500;
 
-// Costo efectivo de un trabajo: el forzado si existe, si no el del tipo.
-function jobCost(job: PrintJob): number {
+type CostParts = { tapa: number; pages: number; total: number; kind: 'book' | 'cuadro' | 'other' };
+
+// Desglose de costo de un trabajo: tapa + páginas.
+function costBreakdown(job: PrintJob): CostParts {
+  const cover = COVER_COST[job.photobookType];
+  if (cover !== undefined) {
+    const printable = Math.max(0, (job.pages || 0) - COVER_PAGES);
+    const pagesCost = printable * pageRate(job.photobookType);
+    return { tapa: cover, pages: pagesCost, total: cover + pagesCost, kind: 'book' };
+  }
+  if (job.photobookType === 'Cuadro 30x40') {
+    return { tapa: 0, pages: 0, total: CUADRO_COST, kind: 'cuadro' };
+  }
+  return { tapa: 0, pages: 0, total: 0, kind: 'other' };
+}
+
+// Total efectivo: el forzado si existe, si no el desglose por tapa + páginas.
+function jobTotal(job: PrintJob): number {
   if (typeof job.costOverride === 'number') return job.costOverride;
-  return COST_CONFIG[job.photobookType] ?? 0;
+  return costBreakdown(job).total;
 }
 
 const fmtMoney = (n: number) => '$' + Math.round(n).toLocaleString('es-AR');
@@ -99,6 +122,7 @@ export default function AdminJobsPanel() {
   const [name, setName] = useState('');
   const [photobookType, setPhotobookType] = useState('');
   const [manualType, setManualType] = useState('');
+  const [pages, setPages] = useState('');
   const [notes, setNotes] = useState('');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -137,6 +161,7 @@ export default function AdminJobsPanel() {
     setName('');
     setPhotobookType('');
     setManualType('');
+    setPages('');
     setNotes('');
     setPdfFile(null);
     setUploadProgress(0);
@@ -191,10 +216,12 @@ export default function AdminJobsPanel() {
       }
 
       // Crear documento
+      const pagesNum = parseInt(pages, 10);
       await setDoc(doc(db, 'printJobs', jobId), {
         name: name.trim(),
         photobookType: finalType,
         notes: notes.trim(),
+        pages: isNaN(pagesNum) ? 0 : pagesNum,
         pdfUrl,
         pdfFilename,
         pdfStoragePath,
@@ -251,6 +278,24 @@ export default function AdminJobsPanel() {
     } catch (err) {
       console.error('Error actualizando costo:', err);
       alert('No se pudo guardar el costo.');
+    }
+  };
+
+  const handleUpdatePages = async (jobId: string, value: number) => {
+    try {
+      await updateDoc(doc(db, 'printJobs', jobId), { pages: value });
+    } catch (err) {
+      console.error('Error actualizando páginas:', err);
+      alert('No se pudo guardar la cantidad de páginas.');
+    }
+  };
+
+  const handleClearOverride = async (jobId: string) => {
+    try {
+      await updateDoc(doc(db, 'printJobs', jobId), { costOverride: deleteField() });
+    } catch (err) {
+      console.error('Error quitando el costo forzado:', err);
+      alert('No se pudo volver al cálculo automático.');
     }
   };
 
@@ -327,7 +372,7 @@ export default function AdminJobsPanel() {
       return true;
     })
     .sort((a, b) => (jobDateSec(b) || 0) - (jobDateSec(a) || 0));
-  const costTotal = costJobs.reduce((sum, j) => sum + jobCost(j), 0);
+  const costTotal = costJobs.reduce((sum, j) => sum + jobTotal(j), 0);
 
   // Tipo efectivo para validar el formulario (manual usa el texto libre).
   const effectiveType = photobookType === MANUAL_OPTION ? manualType.trim() : photobookType;
@@ -426,6 +471,19 @@ export default function AdminJobsPanel() {
                   style={{ width: '100%', marginTop: '0.5rem', padding: '0.6rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
                 />
               )}
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.3rem' }}>Páginas del archivo total</label>
+              <input
+                type="number"
+                min={0}
+                value={pages}
+                onChange={(e) => setPages(e.target.value)}
+                placeholder="ej. 30"
+                style={{ width: '100%', padding: '0.6rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+              />
+              <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Incluye las 2 páginas de tapa. Para libros; el cuadro no la usa.</span>
             </div>
           </div>
 
@@ -790,10 +848,10 @@ export default function AdminJobsPanel() {
             </div>
           ) : (
             <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', minWidth: '720px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', minWidth: '820px' }}>
                 <thead>
                   <tr style={{ backgroundColor: 'var(--surface)', textAlign: 'left' }}>
-                    {['Cliente / Trabajo', 'Producto', 'Realizado', 'Cobrado', 'Costo', 'Estado'].map((h) => (
+                    {['Cliente / Trabajo', 'Producto', 'Realizado', 'Cobrado', 'Págs.', 'Tapa', 'Páginas', 'Total', 'Estado'].map((h) => (
                       <th key={h} style={costTh}>{h}</th>
                     ))}
                   </tr>
@@ -803,6 +861,8 @@ export default function AdminJobsPanel() {
                     const st = (job.status || 'pending') as JobStatus;
                     const sc = STATUS_COLOR[st];
                     const forced = typeof job.costOverride === 'number';
+                    const parts = costBreakdown(job);
+                    const isBook = parts.kind === 'book';
                     return (
                       <tr key={job.id} style={{ borderBottom: '1px solid var(--border)' }}>
                         <td style={{ ...costTd, fontWeight: 600 }}>{job.name}</td>
@@ -810,19 +870,46 @@ export default function AdminJobsPanel() {
                         <td style={costTd}>{job.doneAt ? fmtStatusDate(job.doneAt) : '—'}</td>
                         <td style={costTd}>{job.paidAt ? fmtStatusDate(job.paidAt) : '—'}</td>
                         <td style={costTd}>
+                          {isBook ? (
+                            <input
+                              type="number"
+                              min={0}
+                              key={`pages-${job.id}-${job.pages ?? ''}`}
+                              defaultValue={job.pages ?? ''}
+                              placeholder="—"
+                              onBlur={(e) => {
+                                const v = Number(e.target.value);
+                                if (!isNaN(v) && v !== (job.pages || 0)) handleUpdatePages(job.id, v);
+                              }}
+                              title="Páginas del archivo total (incluye las 2 de la tapa)"
+                              style={{ width: '62px', padding: '0.3rem 0.4rem', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                            />
+                          ) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                        </td>
+                        <td style={costTd}>{isBook ? fmtMoney(parts.tapa) : '—'}</td>
+                        <td style={costTd}>{isBook ? fmtMoney(parts.pages) : '—'}</td>
+                        <td style={costTd}>
                           <span style={{ color: 'var(--text-muted)', marginRight: '0.2rem' }}>$</span>
                           <input
                             type="number"
-                            key={`cost-${job.id}-${job.costOverride ?? ''}`}
-                            defaultValue={jobCost(job)}
+                            key={`total-${job.id}-${job.costOverride ?? ''}-${job.pages ?? ''}`}
+                            defaultValue={jobTotal(job)}
                             onBlur={(e) => {
                               const v = Number(e.target.value);
-                              if (!isNaN(v) && v !== jobCost(job)) handleUpdateCost(job.id, v);
+                              if (!isNaN(v) && v !== jobTotal(job)) handleUpdateCost(job.id, v);
                             }}
-                            title={forced ? 'Costo forzado para este trabajo' : 'Costo por defecto del producto. Editalo para forzarlo.'}
-                            style={{ width: '90px', padding: '0.3rem 0.4rem', borderRadius: '6px', border: `1px solid ${forced ? 'rgba(245,158,11,0.55)' : 'var(--border)'}`, backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                            title={forced ? 'Total forzado' : 'Total calculado (tapa + páginas). Editalo para forzarlo.'}
+                            style={{ width: '92px', padding: '0.3rem 0.4rem', borderRadius: '6px', border: `1px solid ${forced ? 'rgba(245,158,11,0.55)' : 'var(--border)'}`, backgroundColor: 'var(--background)', color: 'var(--foreground)', fontWeight: 600 }}
                           />
-                          {forced && <span style={{ marginLeft: '0.35rem', fontSize: '0.62rem', fontWeight: 700, color: '#b45309' }}>forzado</span>}
+                          {forced && (
+                            <button
+                              onClick={() => handleClearOverride(job.id)}
+                              title="Volver al cálculo automático (tapa + páginas)"
+                              style={{ marginLeft: '0.3rem', fontSize: '0.62rem', fontWeight: 700, color: '#b45309', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+                            >
+                              forzado ✕
+                            </button>
+                          )}
                         </td>
                         <td style={costTd}>
                           <span style={{ fontSize: '0.72rem', fontWeight: 600, padding: '0.15rem 0.55rem', borderRadius: '999px', color: sc.color, backgroundColor: sc.chipBg, border: `1px solid ${sc.border}` }}>
@@ -838,8 +925,9 @@ export default function AdminJobsPanel() {
           )}
 
           <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.9rem', lineHeight: 1.5 }}>
-            Costos por defecto: A4 Tapa Dura {fmtMoney(23500)} · A5 Tapa Dura {fmtMoney(14000)} · Cuadro 30x40 {fmtMoney(1500)}.
-            El resto (Tapa Blanda y trabajos manuales) arranca en {fmtMoney(0)}. Editá el costo de cualquier fila para forzarlo (queda marcado como “forzado”).
+            Cálculo: <b>tapa + páginas</b>. Tapa (fija): A4 Dura {fmtMoney(8500)} · A5 Dura {fmtMoney(5000)} · A4 Blanda {fmtMoney(6500)} · A5 Blanda {fmtMoney(4500)}.
+            Páginas = (páginas del archivo − 2 de la tapa) × {fmtMoney(500)} en A4 / {fmtMoney(300)} en A5. Cuadro 30x40: {fmtMoney(1500)} fijo.
+            Cargá las páginas en cada fila (o al crear el trabajo). Podés editar el Total para forzarlo en casos especiales.
           </p>
         </div>
       )}
