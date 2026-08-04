@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { collection, onSnapshot, query, orderBy, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Briefcase, FileText, Circle, CheckCircle2, DollarSign, ExternalLink, StickyNote, Clock } from 'lucide-react';
+import { Briefcase, FileText, Circle, CheckCircle2, DollarSign, ExternalLink, StickyNote, Clock, Download } from 'lucide-react';
 
 interface PrintJob {
   id: string;
@@ -45,6 +45,32 @@ export default function ImprentaPanel() {
   const [jobs, setJobs] = useState<PrintJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  // Descarga directa del PDF (sin abrirlo). Usa el proxy interno para evitar
+  // problemas de CORS con Firebase Storage y forzar la descarga.
+  const handleDownloadPdf = async (job: PrintJob) => {
+    if (!job.pdfUrl) return;
+    setDownloadingId(job.id);
+    try {
+      const res = await fetch(`/api/proxy?url=${encodeURIComponent(job.pdfUrl)}`);
+      if (!res.ok) throw new Error('No se pudo obtener el archivo');
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objUrl;
+      a.download = job.pdfFilename || `${job.name || 'trabajo'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objUrl);
+    } catch (err) {
+      console.error('Error descargando el PDF:', err);
+      alert('No se pudo descargar el PDF. Probá de nuevo.');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   useEffect(() => {
     const q = query(collection(db, 'printJobs'), orderBy('createdAt', 'desc'));
@@ -156,30 +182,54 @@ export default function ImprentaPanel() {
         )}
 
         {job.pdfUrl && (
-          <a
-            href={job.pdfUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              padding: '0.5rem 0.75rem',
-              borderRadius: 'var(--radius)',
-              backgroundColor: 'rgba(59,130,246,0.1)',
-              color: '#1d4ed8',
-              border: '1px solid rgba(59,130,246,0.3)',
-              fontSize: '0.82rem',
-              fontWeight: 600,
-              textDecoration: 'none',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(59,130,246,0.18)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(59,130,246,0.1)'; }}
-          >
-            <FileText size={14} /> Ver PDF
-            <ExternalLink size={12} style={{ opacity: 0.7 }} />
-          </a>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <a
+              href={job.pdfUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.5rem 0.75rem',
+                borderRadius: 'var(--radius)',
+                backgroundColor: 'rgba(59,130,246,0.1)',
+                color: '#1d4ed8',
+                border: '1px solid rgba(59,130,246,0.3)',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                textDecoration: 'none',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(59,130,246,0.18)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(59,130,246,0.1)'; }}
+            >
+              <FileText size={14} /> Ver PDF
+              <ExternalLink size={12} style={{ opacity: 0.7 }} />
+            </a>
+            <button
+              onClick={() => handleDownloadPdf(job)}
+              disabled={downloadingId === job.id}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.5rem 0.75rem',
+                borderRadius: 'var(--radius)',
+                backgroundColor: '#1d4ed8',
+                color: 'white',
+                border: 'none',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                cursor: downloadingId === job.id ? 'not-allowed' : 'pointer',
+                opacity: downloadingId === job.id ? 0.7 : 1,
+                transition: 'all 0.2s',
+              }}
+              title="Descargar el PDF directamente"
+            >
+              <Download size={14} /> {downloadingId === job.id ? 'Descargando...' : 'Descargar'}
+            </button>
+          </div>
         )}
 
         <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginTop: 'auto' }}>
