@@ -11,7 +11,7 @@ import Link from 'next/link';
 import {
   Briefcase, Plus, FileText, Trash2, ExternalLink,
   Circle, CheckCircle2, DollarSign, UploadCloud, X, StickyNote, ArrowLeft,
-  Pencil, Save, Clock, Search, Calendar
+  Pencil, Save, Clock, Search, Calendar, Download
 } from 'lucide-react';
 
 interface PrintJob {
@@ -128,6 +128,7 @@ export default function AdminJobsPanel() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   // Edición de un trabajo existente
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -278,6 +279,31 @@ export default function AdminJobsPanel() {
     } catch (err) {
       console.error('Error actualizando costo:', err);
       alert('No se pudo guardar el costo.');
+    }
+  };
+
+  // Descarga directa del PDF (sin abrirlo). Usa el proxy interno para forzar
+  // la descarga y evitar CORS con Firebase Storage.
+  const handleDownloadPdf = async (job: PrintJob) => {
+    if (!job.pdfUrl) return;
+    setDownloadingId(job.id);
+    try {
+      const res = await fetch(`/api/proxy?url=${encodeURIComponent(job.pdfUrl)}`);
+      if (!res.ok) throw new Error('No se pudo obtener el archivo');
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objUrl;
+      a.download = job.pdfFilename || `${job.name || 'trabajo'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objUrl);
+    } catch (err) {
+      console.error('Error descargando el PDF:', err);
+      alert('No se pudo descargar el PDF. Probá de nuevo.');
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -770,6 +796,30 @@ export default function AdminJobsPanel() {
                               >
                                 <FileText size={11} /> PDF <ExternalLink size={10} style={{ opacity: 0.6 }} />
                               </a>
+                            )}
+
+                            {job.pdfUrl && (
+                              <button
+                                onClick={() => handleDownloadPdf(job)}
+                                disabled={downloadingId === job.id}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem',
+                                  padding: '0.35rem 0.65rem',
+                                  borderRadius: 'var(--radius)',
+                                  backgroundColor: '#1d4ed8',
+                                  color: 'white',
+                                  border: 'none',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 600,
+                                  cursor: downloadingId === job.id ? 'not-allowed' : 'pointer',
+                                  opacity: downloadingId === job.id ? 0.7 : 1,
+                                }}
+                                title="Descargar el PDF directamente"
+                              >
+                                <Download size={11} /> {downloadingId === job.id ? 'Descargando...' : 'Descargar'}
+                              </button>
                             )}
 
                             <select
