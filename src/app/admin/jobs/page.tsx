@@ -136,6 +136,7 @@ export default function AdminJobsPanel() {
   const [editName, setEditName] = useState('');
   const [editType, setEditType] = useState('');
   const [editManualType, setEditManualType] = useState('');
+  const [editPages, setEditPages] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
 
@@ -333,6 +334,7 @@ export default function AdminJobsPanel() {
     const isPreset = PHOTOBOOK_TYPES.includes(job.photobookType);
     setEditType(isPreset ? job.photobookType : MANUAL_OPTION);
     setEditManualType(isPreset ? '' : job.photobookType);
+    setEditPages(job.pages != null ? String(job.pages) : '');
     setEditNotes(job.notes || '');
   };
 
@@ -352,9 +354,11 @@ export default function AdminJobsPanel() {
     }
     setSavingEdit(true);
     try {
+      const pagesNum = parseInt(editPages, 10);
       await updateDoc(doc(db, 'printJobs', jobId), {
         name: editName.trim(),
         photobookType: finalType,
+        pages: isNaN(pagesNum) ? 0 : pagesNum,
         notes: editNotes.trim(),
       });
       setEditingId(null);
@@ -697,6 +701,17 @@ export default function AdminJobsPanel() {
                                 style={{ width: '100%', marginTop: '0.4rem', padding: '0.5rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)', fontSize: '0.85rem' }}
                               />
                             )}
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.2rem' }}>Páginas del archivo total</label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={editPages}
+                              onChange={(e) => setEditPages(e.target.value)}
+                              placeholder="ej. 30 (incluye la tapa)"
+                              style={{ width: '100%', padding: '0.5rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)', fontSize: '0.85rem' }}
+                            />
                           </div>
                           <div>
                             <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.2rem' }}>Notas para la imprenta</label>
