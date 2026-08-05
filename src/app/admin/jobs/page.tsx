@@ -86,7 +86,8 @@ type CostParts = { tapa: number; pages: number; total: number; kind: 'book' | 'c
 function costBreakdown(job: PrintJob): CostParts {
   const cover = COVER_COST[job.photobookType];
   if (cover !== undefined) {
-    const printable = Math.max(0, (job.pages || 0) - COVER_PAGES);
+    // Redondeamos por si algún dato viejo quedó con decimales.
+    const printable = Math.max(0, Math.round(job.pages || 0) - COVER_PAGES);
     const pagesCost = printable * pageRate(job.photobookType);
     return { tapa: cover, pages: pagesCost, total: cover + pagesCost, kind: 'book' };
   }
@@ -311,7 +312,7 @@ export default function AdminJobsPanel() {
 
   const handleUpdatePages = async (jobId: string, value: number) => {
     try {
-      await updateDoc(doc(db, 'printJobs', jobId), { pages: value });
+      await updateDoc(doc(db, 'printJobs', jobId), { pages: Math.max(0, Math.round(value)) });
     } catch (err) {
       console.error('Error actualizando páginas:', err);
       alert('No se pudo guardar la cantidad de páginas.');
@@ -510,6 +511,7 @@ export default function AdminJobsPanel() {
               <input
                 type="number"
                 min={0}
+                step={1}
                 value={pages}
                 onChange={(e) => setPages(e.target.value)}
                 placeholder="ej. 30"
@@ -707,6 +709,7 @@ export default function AdminJobsPanel() {
                             <input
                               type="number"
                               min={0}
+                              step={1}
                               value={editPages}
                               onChange={(e) => setEditPages(e.target.value)}
                               placeholder="ej. 30 (incluye la tapa)"
@@ -945,11 +948,12 @@ export default function AdminJobsPanel() {
                             <input
                               type="number"
                               min={0}
+                              step={1}
                               key={`pages-${job.id}-${job.pages ?? ''}`}
                               defaultValue={job.pages ?? ''}
                               placeholder="—"
                               onBlur={(e) => {
-                                const v = Number(e.target.value);
+                                const v = parseInt(e.target.value, 10);
                                 if (!isNaN(v) && v !== (job.pages || 0)) handleUpdatePages(job.id, v);
                               }}
                               title="Páginas del archivo total (incluye las 2 de la tapa)"
