@@ -98,7 +98,7 @@ function costBreakdown(job: PrintJob): CostParts {
 
 // Total efectivo: el forzado si existe, si no el desglose por tapa + páginas.
 function jobTotal(job: PrintJob): number {
-  if (typeof job.costOverride === 'number') return job.costOverride;
+  if (typeof job.costOverride === 'number' && Number.isFinite(job.costOverride)) return job.costOverride;
   return costBreakdown(job).total;
 }
 
@@ -377,15 +377,15 @@ export default function AdminJobsPanel() {
     paid:    visibleJobs.filter(j => j.status === 'paid'),
   };
 
-  // ── Sección de costos: filtrar por fecha de realizado o cobrado ──
-  // Fecha relevante del trabajo según el filtro. Si no tiene doneAt/paidAt
-  // (trabajos previos a registrar esas fechas) pero ya está en ese estado,
-  // usamos statusUpdatedAt como aproximación para que igual aparezca.
+  // ── Sección de costos: filtrar por ESTADO ACTUAL del trabajo ──
+  // Un trabajo cuenta SOLO en su último estado: si está Cobrado no aparece en
+  // "Realizado" (aunque conserve su fecha de realizado). Así no se duplica.
+  const targetStatus: JobStatus = costDateField === 'done' ? 'done' : 'paid';
   const jobDateSec = (j: PrintJob): number | undefined => {
-    if (costDateField === 'done') {
-      return j.doneAt?.seconds ?? (j.status === 'done' ? j.statusUpdatedAt?.seconds : undefined);
-    }
-    return j.paidAt?.seconds ?? (j.status === 'paid' ? j.statusUpdatedAt?.seconds : undefined);
+    if ((j.status || 'pending') !== targetStatus) return undefined;
+    const ts = costDateField === 'done' ? j.doneAt : j.paidAt;
+    // Si no tiene la fecha registrada, usamos la del último cambio de estado.
+    return ts?.seconds ?? j.statusUpdatedAt?.seconds;
   };
   const costFromTs = costFrom ? new Date(costFrom + 'T00:00:00').getTime() / 1000 : 0;
   const costToTs = costTo ? new Date(costTo + 'T23:59:59').getTime() / 1000 : Infinity;
