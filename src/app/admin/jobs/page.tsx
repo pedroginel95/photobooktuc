@@ -117,6 +117,7 @@ export default function AdminJobsPanel() {
   const [costDateField, setCostDateField] = useState<'done' | 'paid'>('paid');
   const [costFrom, setCostFrom] = useState('');
   const [costTo, setCostTo] = useState('');
+  const [onlyForced, setOnlyForced] = useState(false);
 
   // Formulario
   const [name, setName] = useState('');
@@ -395,6 +396,7 @@ export default function AdminJobsPanel() {
       if (sec === undefined) return false;
       if (sec < costFromTs || sec > costToTs) return false;
       if (searchTerm && !(j.name || '').toLowerCase().includes(searchTerm)) return false;
+      if (onlyForced && !(typeof j.costOverride === 'number')) return false;
       return true;
     })
     .sort((a, b) => (jobDateSec(b) || 0) - (jobDateSec(a) || 0));
@@ -885,6 +887,10 @@ export default function AdminJobsPanel() {
                 Limpiar
               </button>
             )}
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', color: onlyForced ? '#b45309' : 'var(--text-muted)', cursor: 'pointer', userSelect: 'none', padding: '0.5rem 0' }}>
+              <input type="checkbox" checked={onlyForced} onChange={(e) => setOnlyForced(e.target.checked)} style={{ width: '15px', height: '15px', cursor: 'pointer', accentColor: '#b45309' }} />
+              Solo forzados
+            </label>
             <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
               <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Costo total ({costJobs.length} trabajo{costJobs.length !== 1 ? 's' : ''})</div>
               <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#ef4444' }}>{fmtMoney(costTotal)}</div>
