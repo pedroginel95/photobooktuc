@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { collection, onSnapshot, query, orderBy, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Briefcase, FileText, Circle, CheckCircle2, DollarSign, ExternalLink, StickyNote, Clock, Download } from 'lucide-react';
+import { Briefcase, FileText, Circle, CheckCircle2, DollarSign, ExternalLink, StickyNote, Clock, Download, Calendar, Search } from 'lucide-react';
 
 interface PrintJob {
   id: string;
@@ -15,9 +15,40 @@ interface PrintJob {
   status: 'pending' | 'done' | 'paid';
   createdAt?: { seconds: number };
   statusUpdatedAt?: { seconds: number };
+  doneAt?: { seconds: number };
+  paidAt?: { seconds: number };
+  pages?: number;
+  costOverride?: number;
 }
 
 type JobStatus = 'pending' | 'done' | 'paid';
+
+// ── Costos (mismo modelo que en el panel admin) ──
+const COVER_COST: Record<string, number> = {
+  'A4 Tapa Blanda': 6500,
+  'A5 Tapa Blanda': 4500,
+  'A4 Tapa Dura': 8500,
+  'A5 Tapa Dura': 5000,
+};
+const pageRate = (type: string) => (type.includes('A4') ? 500 : type.includes('A5') ? 300 : 0);
+const COVER_PAGES = 2;
+const CUADRO_COST = 1500;
+
+function costBreakdown(job: PrintJob): { tapa: number; pages: number; total: number; kind: 'book' | 'cuadro' | 'other' } {
+  const cover = COVER_COST[job.photobookType];
+  if (cover !== undefined) {
+    const printable = Math.max(0, Math.round(job.pages || 0) - COVER_PAGES);
+    const pagesCost = printable * pageRate(job.photobookType);
+    return { tapa: cover, pages: pagesCost, total: cover + pagesCost, kind: 'book' };
+  }
+  if (job.photobookType === 'Cuadro 30x40') return { tapa: 0, pages: 0, total: CUADRO_COST, kind: 'cuadro' };
+  return { tapa: 0, pages: 0, total: 0, kind: 'other' };
+}
+function jobTotal(job: PrintJob): number {
+  if (typeof job.costOverride === 'number' && Number.isFinite(job.costOverride)) return job.costOverride;
+  return costBreakdown(job).total;
+}
+const fmtMoney = (n: number) => '$' + Math.round(n).toLocaleString('es-AR');
 
 // Fecha corta dd/mm/aa a partir de un Timestamp de Firestore.
 function fmtStatusDate(ts?: { seconds: number }) {
@@ -46,6 +77,22 @@ export default function ImprentaPanel() {
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  // Vista: trabajos o calculadora de costos
+  const [view, setView] = useState<'jobs' | 'costs'>('jobs');
+  const [searchJob, setSearchJob] = useState('');
+  const [costDateField, setCostDateField] = useState<'done' | 'paid'>('paid');
+  const [costFrom, setCostFrom] = useState('');
+  const [costTo, setCostTo] = useState('');
+
+  const handleUpdatePages = async (jobId: string, value: number) => {
+    try {
+      await updateDoc(doc(db, 'printJobs', jobId), { pages: Math.max(0, Math.round(value)) });
+    } catch (err) {
+      console.error('Error actualizando páginas:', err);
+      alert('No se pudo guardar la cantidad de páginas. Puede que falte publicar las reglas.');
+    }
+  };
 
   // Descarga directa del PDF (sin abrirlo). Usa el proxy interno para evitar
   // problemas de CORS con Firebase Storage y forzar la descarga.
@@ -125,6 +172,31 @@ export default function ImprentaPanel() {
     done:    jobs.filter(j => j.status === 'done'),
     paid:    jobs.filter(j => j.status === 'paid'),
   };
+
+  // ── Calculadora de costos ──
+  const searchTerm = searchJob.trim().toLowerCase();
+  const targetStatus: JobStatus = costDateField === 'done' ? 'done' : 'paid';
+  const jobDateSec = (j: PrintJob): number | undefined => {
+    if ((j.status || 'pending') !== targetStatus) return undefined;
+    const ts = costDateField === 'done' ? j.doneAt : j.paidAt;
+    return ts?.seconds ?? j.statusUpdatedAt?.seconds;
+  };
+  const costFromTs = costFrom ? new Date(costFrom + 'T00:00:00').getTime() / 1000 : 0;
+  const costToTs = costTo ? new Date(costTo + 'T23:59:59').getTime() / 1000 : Infinity;
+  const costJobs = jobs
+    .filter(j => {
+      const sec = jobDateSec(j);
+      if (sec === undefined) return false;
+      if (sec < costFromTs || sec > costToTs) return false;
+      if (searchTerm && !(j.name || '').toLowerCase().includes(searchTerm)) return false;
+      return true;
+    })
+    .sort((a, b) => (jobDateSec(b) || 0) - (jobDateSec(a) || 0));
+  const costTotal = costJobs.reduce((sum, j) => sum + jobTotal(j), 0);
+
+  const costTh: React.CSSProperties = { padding: '0.6rem 0.7rem', fontWeight: 700, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', textAlign: 'left' };
+  const costTd: React.CSSProperties = { padding: '0.55rem 0.7rem', whiteSpace: 'nowrap' };
+  const costFilterInput: React.CSSProperties = { padding: '0.5rem 0.6rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)', fontSize: '0.85rem', cursor: 'pointer' };
 
   const renderJobCard = (job: PrintJob) => {
     const status = (job.status || 'pending') as JobStatus;
@@ -339,29 +411,150 @@ export default function ImprentaPanel() {
 
   return (
     <div>
-      <div style={{ marginBottom: '2rem' }}>
+      <div style={{ marginBottom: '1.75rem' }}>
         <h2 style={{ fontSize: '2.2rem', fontWeight: 800, marginBottom: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <Briefcase size={32} color="#4338ca" /> Trabajos
+          <Briefcase size={32} color="#4338ca" /> Imprenta
         </h2>
-        <p style={{ color: 'var(--text-muted)' }}>Gestioná los trabajos asignados a tu imprenta moviéndolos entre estados.</p>
+        <p style={{ color: 'var(--text-muted)' }}>Gestioná los trabajos y calculá los costos.</p>
       </div>
 
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Cargando trabajos...</div>
-      ) : jobs.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'var(--surface)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-          <Briefcase size={48} style={{ margin: '0 auto 1rem', opacity: 0.4 }} />
-          <p style={{ color: 'var(--text-muted)' }}>Todavía no hay trabajos asignados.</p>
-        </div>
-      ) : (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: '1.25rem',
-        }}>
-          {renderColumn('pending', <Circle size={16} />)}
-          {renderColumn('done', <CheckCircle2 size={16} />)}
-          {renderColumn('paid', <DollarSign size={16} />)}
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.75rem', backgroundColor: 'var(--surface)', padding: '0.4rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', width: 'fit-content' }}>
+        {([['jobs', 'Trabajos', <Briefcase size={16} key="b" />], ['costs', 'Costos', <DollarSign size={16} key="d" />]] as const).map(([key, label, icon]) => (
+          <button
+            key={key}
+            onClick={() => setView(key as 'jobs' | 'costs')}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+              padding: '0.55rem 1.15rem', borderRadius: 'var(--radius)', fontWeight: 600,
+              fontSize: '0.9rem', cursor: 'pointer', border: 'none',
+              backgroundColor: view === key ? 'var(--primary)' : 'transparent',
+              color: view === key ? 'white' : 'var(--text-muted)',
+            }}
+          >
+            {icon} {label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'jobs' && (
+        loading ? (
+          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Cargando trabajos...</div>
+        ) : jobs.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'var(--surface)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+            <Briefcase size={48} style={{ margin: '0 auto 1rem', opacity: 0.4 }} />
+            <p style={{ color: 'var(--text-muted)' }}>Todavía no hay trabajos asignados.</p>
+          </div>
+        ) : (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: '1.25rem',
+          }}>
+            {renderColumn('pending', <Circle size={16} />)}
+            {renderColumn('done', <CheckCircle2 size={16} />)}
+            {renderColumn('paid', <DollarSign size={16} />)}
+          </div>
+        )
+      )}
+
+      {view === 'costs' && (
+        <div>
+          {/* Filtros */}
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.3rem' }}>Filtrar por fecha de</label>
+              <select value={costDateField} onChange={(e) => setCostDateField(e.target.value as 'done' | 'paid')} style={costFilterInput}>
+                <option value="paid">Cobrado</option>
+                <option value="done">Realizado</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.3rem' }}>Desde</label>
+              <input type="date" value={costFrom} onChange={(e) => setCostFrom(e.target.value)} style={{ ...costFilterInput, cursor: 'text' }} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.3rem' }}>Hasta</label>
+              <input type="date" value={costTo} onChange={(e) => setCostTo(e.target.value)} style={{ ...costFilterInput, cursor: 'text' }} />
+            </div>
+            {(costFrom || costTo) && (
+              <button onClick={() => { setCostFrom(''); setCostTo(''); }} style={{ padding: '0.5rem 0.9rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', backgroundColor: 'var(--surface)', color: 'var(--foreground)', fontWeight: 500, fontSize: '0.85rem', cursor: 'pointer' }}>
+                Limpiar
+              </button>
+            )}
+            <div style={{ position: 'relative', minWidth: '200px' }}>
+              <Search size={14} style={{ position: 'absolute', left: '0.6rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+              <input type="text" placeholder="Buscar por cliente..." value={searchJob} onChange={(e) => setSearchJob(e.target.value)} style={{ ...costFilterInput, cursor: 'text', width: '100%', paddingLeft: '1.9rem' }} />
+            </div>
+            <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Costo total ({costJobs.length} trabajo{costJobs.length !== 1 ? 's' : ''})</div>
+              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#ef4444' }}>{fmtMoney(costTotal)}</div>
+            </div>
+          </div>
+
+          {costJobs.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'var(--surface)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+              <Calendar size={40} style={{ margin: '0 auto 1rem', opacity: 0.4 }} />
+              No hay trabajos {targetStatus === 'done' ? 'realizados' : 'cobrados'} en este período.
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', minWidth: '760px' }}>
+                <thead>
+                  <tr style={{ backgroundColor: 'var(--surface)' }}>
+                    {['Cliente / Trabajo', 'Producto', 'Realizado', 'Cobrado', 'Págs.', 'Tapa', 'Páginas', 'Total'].map((h) => (
+                      <th key={h} style={costTh}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {costJobs.map((job) => {
+                    const parts = costBreakdown(job);
+                    const isBook = parts.kind === 'book';
+                    const forced = typeof job.costOverride === 'number';
+                    return (
+                      <tr key={job.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ ...costTd, fontWeight: 600 }}>{job.name}</td>
+                        <td style={costTd}>{job.photobookType}</td>
+                        <td style={costTd}>{job.doneAt ? fmtStatusDate(job.doneAt) : '—'}</td>
+                        <td style={costTd}>{job.paidAt ? fmtStatusDate(job.paidAt) : '—'}</td>
+                        <td style={costTd}>
+                          {isBook ? (
+                            <input
+                              type="number"
+                              min={0}
+                              step={1}
+                              key={`pages-${job.id}-${job.pages ?? ''}`}
+                              defaultValue={job.pages ?? ''}
+                              placeholder="—"
+                              onBlur={(e) => {
+                                const v = parseInt(e.target.value, 10);
+                                if (!isNaN(v) && v !== (job.pages || 0)) handleUpdatePages(job.id, v);
+                              }}
+                              title="Páginas del archivo total (incluye las 2 de la tapa)"
+                              style={{ width: '62px', padding: '0.3rem 0.4rem', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                            />
+                          ) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                        </td>
+                        <td style={costTd}>{isBook ? fmtMoney(parts.tapa) : '—'}</td>
+                        <td style={costTd}>{isBook ? fmtMoney(parts.pages) : '—'}</td>
+                        <td style={{ ...costTd, fontWeight: 700 }}>
+                          {fmtMoney(jobTotal(job))}
+                          {forced && <span style={{ marginLeft: '0.35rem', fontSize: '0.62rem', fontWeight: 700, color: '#b45309' }}>forzado</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.9rem', lineHeight: 1.5 }}>
+            Cálculo: tapa + páginas. Tapa: A4 Dura {fmtMoney(8500)} · A5 Dura {fmtMoney(5000)} · A4 Blanda {fmtMoney(6500)} · A5 Blanda {fmtMoney(4500)}.
+            Páginas = (páginas del archivo − 2) × {fmtMoney(500)} en A4 / {fmtMoney(300)} en A5. Cuadro 30x40: {fmtMoney(1500)}.
+            Cargá las páginas en la columna Págs.
+          </p>
         </div>
       )}
     </div>
