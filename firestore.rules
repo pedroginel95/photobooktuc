@@ -34,11 +34,11 @@ service cloud.firestore {
       allow read: if request.auth != null
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isImprenta == true;
 
-      // Imprenta: puede actualizar el estado, sus fechas y las páginas del
-      // archivo (para la calculadora de costos).
+      // Imprenta: puede actualizar el estado, sus fechas, las páginas del
+      // archivo y el costo forzado (para la calculadora de costos).
       allow update: if request.auth != null
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isImprenta == true
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'statusUpdatedAt', 'doneAt', 'paidAt', 'pages']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'statusUpdatedAt', 'doneAt', 'paidAt', 'pages', 'costOverride']);
     }
 
     // ── Registros de ventas (estadísticas) ──

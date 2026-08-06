@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, orderBy, doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, updateDoc, deleteField, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Briefcase, FileText, Circle, CheckCircle2, DollarSign, ExternalLink, StickyNote, Clock, Download, Calendar, Search } from 'lucide-react';
 
@@ -91,6 +91,24 @@ export default function ImprentaPanel() {
     } catch (err) {
       console.error('Error actualizando páginas:', err);
       alert('No se pudo guardar la cantidad de páginas. Puede que falte publicar las reglas.');
+    }
+  };
+
+  const handleUpdateCost = async (jobId: string, value: number) => {
+    try {
+      await updateDoc(doc(db, 'printJobs', jobId), { costOverride: value });
+    } catch (err) {
+      console.error('Error actualizando costo:', err);
+      alert('No se pudo guardar el costo. Puede que falte publicar las reglas.');
+    }
+  };
+
+  const handleClearOverride = async (jobId: string) => {
+    try {
+      await updateDoc(doc(db, 'printJobs', jobId), { costOverride: deleteField() });
+    } catch (err) {
+      console.error('Error quitando el costo forzado:', err);
+      alert('No se pudo volver al cálculo automático.');
     }
   };
 
@@ -538,9 +556,28 @@ export default function ImprentaPanel() {
                         </td>
                         <td style={costTd}>{isBook ? fmtMoney(parts.tapa) : '—'}</td>
                         <td style={costTd}>{isBook ? fmtMoney(parts.pages) : '—'}</td>
-                        <td style={{ ...costTd, fontWeight: 700 }}>
-                          {fmtMoney(jobTotal(job))}
-                          {forced && <span style={{ marginLeft: '0.35rem', fontSize: '0.62rem', fontWeight: 700, color: '#b45309' }}>forzado</span>}
+                        <td style={costTd}>
+                          <span style={{ color: 'var(--text-muted)', marginRight: '0.2rem' }}>$</span>
+                          <input
+                            type="number"
+                            key={`total-${job.id}-${job.costOverride ?? ''}-${job.pages ?? ''}`}
+                            defaultValue={jobTotal(job)}
+                            onBlur={(e) => {
+                              const v = Number(e.target.value);
+                              if (!isNaN(v) && v !== jobTotal(job)) handleUpdateCost(job.id, v);
+                            }}
+                            title={forced ? 'Total forzado' : 'Total calculado (tapa + páginas). Editalo para forzarlo.'}
+                            style={{ width: '92px', padding: '0.3rem 0.4rem', borderRadius: '6px', border: `1px solid ${forced ? 'rgba(245,158,11,0.55)' : 'var(--border)'}`, backgroundColor: 'var(--background)', color: 'var(--foreground)', fontWeight: 600 }}
+                          />
+                          {forced && (
+                            <button
+                              onClick={() => handleClearOverride(job.id)}
+                              title="Volver al cálculo automático (tapa + páginas)"
+                              style={{ marginLeft: '0.3rem', fontSize: '0.62rem', fontWeight: 700, color: '#b45309', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+                            >
+                              forzado ✕
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
