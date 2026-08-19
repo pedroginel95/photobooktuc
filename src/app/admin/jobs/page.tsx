@@ -124,7 +124,6 @@ export default function AdminJobsPanel() {
   const [costFrom, setCostFrom] = useState('');
   const [costTo, setCostTo] = useState('');
   const [onlyForced, setOnlyForced] = useState(false);
-  const [renaming, setRenaming] = useState(false);
 
   // Formulario
   const [name, setName] = useState('');
@@ -334,31 +333,11 @@ export default function AdminJobsPanel() {
     }
   };
 
-  // Migración única: renombra los trabajos viejos "A4/A5 Tapa Dura" a
-  // "...Anillado" para que queden con el nombre nuevo.
+  // Mapa de nombres viejos ("A4/A5 Tapa Dura") a los nuevos ("...Anillado"),
+  // usado al editar un trabajo cargado antes del rename.
   const RENAME_MAP: Record<string, string> = {
     'A4 Tapa Dura': 'A4 Tapa Dura Anillado',
     'A5 Tapa Dura': 'A5 Tapa Dura Anillado',
-  };
-  const handleRenameToAnillado = async () => {
-    const targets = jobs.filter(j => RENAME_MAP[j.photobookType]);
-    if (targets.length === 0) {
-      alert('No hay trabajos con el nombre viejo "Tapa Dura".');
-      return;
-    }
-    if (!confirm(`Renombrar ${targets.length} trabajo(s) "Tapa Dura" a "Tapa Dura Anillado"?`)) return;
-    setRenaming(true);
-    try {
-      for (const j of targets) {
-        await updateDoc(doc(db, 'printJobs', j.id), { photobookType: RENAME_MAP[j.photobookType] });
-      }
-      alert(`Listo: ${targets.length} trabajo(s) renombrados a Anillado.`);
-    } catch (err) {
-      console.error('Error renombrando trabajos:', err);
-      alert('Hubo un error al renombrar.');
-    } finally {
-      setRenaming(false);
-    }
   };
 
   const startEdit = (job: PrintJob) => {
@@ -918,20 +897,6 @@ export default function AdminJobsPanel() {
 
       {view === 'costs' && (
         <div>
-          {/* Herramienta única: renombrar Tapa Dura → Anillado en trabajos viejos */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.25rem', padding: '0.75rem 1rem', backgroundColor: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 'var(--radius)' }}>
-            <span style={{ fontSize: '0.82rem', color: '#92400e' }}>
-              Herramienta única: renombrar los trabajos viejos “A4/A5 Tapa Dura” a “…Anillado”.
-            </span>
-            <button
-              onClick={handleRenameToAnillado}
-              disabled={renaming}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', borderRadius: 'var(--radius)', backgroundColor: '#b45309', color: 'white', border: 'none', fontWeight: 600, fontSize: '0.82rem', cursor: renaming ? 'not-allowed' : 'pointer', opacity: renaming ? 0.7 : 1, whiteSpace: 'nowrap' }}
-            >
-              {renaming ? 'Renombrando...' : 'Renombrar a Anillado'}
-            </button>
-          </div>
-
           {/* Filtros de costos */}
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
             <div>
