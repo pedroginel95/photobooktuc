@@ -56,8 +56,9 @@ const STATUS_COLOR: Record<JobStatus, { color: string; border: string; chipBg: s
 };
 
 const PHOTOBOOK_TYPES = [
-  'A4 Tapa Dura',
-  'A5 Tapa Dura',
+  'A4 Tapa Dura Anillado',
+  'A5 Tapa Dura Anillado',
+  'A4 Tapa Dura Encuadernado',
   'A4 Tapa Blanda',
   'A5 Tapa Blanda',
   'Cuadro 30x40',
@@ -70,6 +71,10 @@ const MANUAL_OPTION = '__manual__';
 const COVER_COST: Record<string, number> = {
   'A4 Tapa Blanda': 6500,
   'A5 Tapa Blanda': 4500,
+  'A4 Tapa Dura Anillado': 8500,
+  'A5 Tapa Dura Anillado': 5000,
+  'A4 Tapa Dura Encuadernado': 18500,
+  // Nombres viejos (trabajos creados antes del rename a "Anillado")
   'A4 Tapa Dura': 8500,
   'A5 Tapa Dura': 5000,
 };
@@ -119,6 +124,7 @@ export default function AdminJobsPanel() {
   const [costFrom, setCostFrom] = useState('');
   const [costTo, setCostTo] = useState('');
   const [onlyForced, setOnlyForced] = useState(false);
+  const [renaming, setRenaming] = useState(false);
 
   // Formulario
   const [name, setName] = useState('');
@@ -328,13 +334,42 @@ export default function AdminJobsPanel() {
     }
   };
 
+  // Migración única: renombra los trabajos viejos "A4/A5 Tapa Dura" a
+  // "...Anillado" para que queden con el nombre nuevo.
+  const RENAME_MAP: Record<string, string> = {
+    'A4 Tapa Dura': 'A4 Tapa Dura Anillado',
+    'A5 Tapa Dura': 'A5 Tapa Dura Anillado',
+  };
+  const handleRenameToAnillado = async () => {
+    const targets = jobs.filter(j => RENAME_MAP[j.photobookType]);
+    if (targets.length === 0) {
+      alert('No hay trabajos con el nombre viejo "Tapa Dura".');
+      return;
+    }
+    if (!confirm(`Renombrar ${targets.length} trabajo(s) "Tapa Dura" a "Tapa Dura Anillado"?`)) return;
+    setRenaming(true);
+    try {
+      for (const j of targets) {
+        await updateDoc(doc(db, 'printJobs', j.id), { photobookType: RENAME_MAP[j.photobookType] });
+      }
+      alert(`Listo: ${targets.length} trabajo(s) renombrados a Anillado.`);
+    } catch (err) {
+      console.error('Error renombrando trabajos:', err);
+      alert('Hubo un error al renombrar.');
+    } finally {
+      setRenaming(false);
+    }
+  };
+
   const startEdit = (job: PrintJob) => {
     setEditingId(job.id);
     setEditName(job.name);
+    // Mapear nombres viejos (Tapa Dura) a los nuevos (Anillado) al editar.
+    const mappedType = RENAME_MAP[job.photobookType] || job.photobookType;
     // Si el tipo es uno de los preset usamos el desplegable; si no, modo manual.
-    const isPreset = PHOTOBOOK_TYPES.includes(job.photobookType);
-    setEditType(isPreset ? job.photobookType : MANUAL_OPTION);
-    setEditManualType(isPreset ? '' : job.photobookType);
+    const isPreset = PHOTOBOOK_TYPES.includes(mappedType);
+    setEditType(isPreset ? mappedType : MANUAL_OPTION);
+    setEditManualType(isPreset ? '' : mappedType);
     setEditPages(job.pages != null ? String(job.pages) : '');
     setEditNotes(job.notes || '');
   };
@@ -883,6 +918,20 @@ export default function AdminJobsPanel() {
 
       {view === 'costs' && (
         <div>
+          {/* Herramienta única: renombrar Tapa Dura → Anillado en trabajos viejos */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.25rem', padding: '0.75rem 1rem', backgroundColor: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 'var(--radius)' }}>
+            <span style={{ fontSize: '0.82rem', color: '#92400e' }}>
+              Herramienta única: renombrar los trabajos viejos “A4/A5 Tapa Dura” a “…Anillado”.
+            </span>
+            <button
+              onClick={handleRenameToAnillado}
+              disabled={renaming}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', borderRadius: 'var(--radius)', backgroundColor: '#b45309', color: 'white', border: 'none', fontWeight: 600, fontSize: '0.82rem', cursor: renaming ? 'not-allowed' : 'pointer', opacity: renaming ? 0.7 : 1, whiteSpace: 'nowrap' }}
+            >
+              {renaming ? 'Renombrando...' : 'Renombrar a Anillado'}
+            </button>
+          </div>
+
           {/* Filtros de costos */}
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
             <div>
@@ -1000,7 +1049,7 @@ export default function AdminJobsPanel() {
           )}
 
           <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.9rem', lineHeight: 1.5 }}>
-            Cálculo: <b>tapa + páginas</b>. Tapa (fija): A4 Dura {fmtMoney(8500)} · A5 Dura {fmtMoney(5000)} · A4 Blanda {fmtMoney(6500)} · A5 Blanda {fmtMoney(4500)}.
+            Cálculo: <b>tapa + páginas</b>. Tapa (fija): A4 Dura Anillado {fmtMoney(8500)} · A5 Dura Anillado {fmtMoney(5000)} · A4 Dura Encuadernado {fmtMoney(18500)} · A4 Blanda {fmtMoney(6500)} · A5 Blanda {fmtMoney(4500)}.
             Páginas = (páginas del archivo − 2 de la tapa) × {fmtMoney(500)} en A4 / {fmtMoney(300)} en A5. Cuadro 30x40: {fmtMoney(1500)} fijo.
             Cargá las páginas en cada fila (o al crear el trabajo). Podés editar el Total para forzarlo en casos especiales.
           </p>

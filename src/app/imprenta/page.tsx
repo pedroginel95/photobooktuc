@@ -27,6 +27,10 @@ type JobStatus = 'pending' | 'done' | 'paid';
 const COVER_COST: Record<string, number> = {
   'A4 Tapa Blanda': 6500,
   'A5 Tapa Blanda': 4500,
+  'A4 Tapa Dura Anillado': 8500,
+  'A5 Tapa Dura Anillado': 5000,
+  'A4 Tapa Dura Encuadernado': 18500,
+  // Nombres viejos (antes del rename a "Anillado")
   'A4 Tapa Dura': 8500,
   'A5 Tapa Dura': 5000,
 };
@@ -588,7 +592,7 @@ export default function ImprentaPanel() {
           )}
 
           <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.9rem', lineHeight: 1.5 }}>
-            Cálculo: tapa + páginas. Tapa: A4 Dura {fmtMoney(8500)} · A5 Dura {fmtMoney(5000)} · A4 Blanda {fmtMoney(6500)} · A5 Blanda {fmtMoney(4500)}.
+            Cálculo: tapa + páginas. Tapa: A4 Dura Anillado {fmtMoney(8500)} · A5 Dura Anillado {fmtMoney(5000)} · A4 Dura Encuadernado {fmtMoney(18500)} · A4 Blanda {fmtMoney(6500)} · A5 Blanda {fmtMoney(4500)}.
             Páginas = (páginas del archivo − 2) × {fmtMoney(500)} en A4 / {fmtMoney(300)} en A5. Cuadro 30x40: {fmtMoney(1500)}.
             Cargá las páginas en la columna Págs.
           </p>
