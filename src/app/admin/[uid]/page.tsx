@@ -537,11 +537,14 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
                     style={{ width: '100%', padding: '0.6rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)', cursor: 'pointer' }}
                   >
                     <option value="">— Sin especificar —</option>
-                    <option value="A4 Tapa Dura">A4 Tapa Dura</option>
-                    <option value="A5 Tapa Dura">A5 Tapa Dura</option>
+                    <option value="A4 Tapa Dura Anillado">A4 Tapa Dura Anillado</option>
+                    <option value="A5 Tapa Dura Anillado">A5 Tapa Dura Anillado</option>
+                    <option value="A4 Tapa Dura Encuadernado">A4 Tapa Dura Encuadernado</option>
                     <option value="A4 Tapa Blanda">A4 Tapa Blanda</option>
                     <option value="A5 Tapa Blanda">A5 Tapa Blanda</option>
                     <option value="Cuadro 30x40">Cuadro 30x40</option>
+                    {editForm.photobookType === 'A4 Tapa Dura' && <option value="A4 Tapa Dura">A4 Tapa Dura (viejo)</option>}
+                    {editForm.photobookType === 'A5 Tapa Dura' && <option value="A5 Tapa Dura">A5 Tapa Dura (viejo)</option>}
                   </select>
                 </div>
 

@@ -37,14 +37,27 @@ interface SaleRecord {
 interface ProductConfig { price: number; printCost: number; designerCost: number; }
 
 const PRODUCT_CONFIG: Record<string, ProductConfig> = {
-  'A5 Tapa Blanda': { price: 33990, printCost: 13000, designerCost: 7000 },
-  'A5 Tapa Dura':   { price: 35990, printCost: 13000, designerCost: 7000 },
-  'A4 Tapa Blanda': { price: 49990, printCost: 23500, designerCost: 7000 },
-  'A4 Tapa Dura':   { price: 59990, printCost: 23500, designerCost: 7000 },
-  'Cuadro 30x40':   { price: 24990, printCost: 13000, designerCost: 0 },
+  'A5 Tapa Blanda':            { price: 33990, printCost: 13000, designerCost: 7000 },
+  'A5 Tapa Dura Anillado':     { price: 35990, printCost: 13000, designerCost: 7000 },
+  'A4 Tapa Blanda':            { price: 49990, printCost: 23500, designerCost: 7000 },
+  'A4 Tapa Dura Anillado':     { price: 59990, printCost: 23500, designerCost: 7000 },
+  // TODO: confirmar precio de venta real del Encuadernado (placeholder = A4 Dura)
+  'A4 Tapa Dura Encuadernado': { price: 59990, printCost: 23500, designerCost: 7000 },
+  'Cuadro 30x40':              { price: 24990, printCost: 13000, designerCost: 0 },
+  // Nombres viejos (clientes/registros previos al rename a "Anillado")
+  'A5 Tapa Dura':              { price: 35990, printCost: 13000, designerCost: 7000 },
+  'A4 Tapa Dura':              { price: 59990, printCost: 23500, designerCost: 7000 },
 };
 
-const PRODUCT_TYPES = Object.keys(PRODUCT_CONFIG);
+// Productos ofrecidos para registros nuevos (sin los nombres viejos).
+const PRODUCT_TYPES = [
+  'A4 Tapa Dura Anillado',
+  'A5 Tapa Dura Anillado',
+  'A4 Tapa Dura Encuadernado',
+  'A4 Tapa Blanda',
+  'A5 Tapa Blanda',
+  'Cuadro 30x40',
+];
 
 // Distingue cuadros de foto libros
 const isCuadroType = (type: string) => type === 'Cuadro 30x40';

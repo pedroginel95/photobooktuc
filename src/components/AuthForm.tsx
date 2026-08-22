@@ -130,8 +130,9 @@ export default function AuthForm() {
               <p className={styles.fieldHint}>Seleccioná el producto que encargaste</p>
               <div className={styles.optionGrid}>
                 {[
-                  { value: 'A4 Tapa Dura',   size: 'A4',     cover: 'Tapa Dura',   wide: false },
-                  { value: 'A5 Tapa Dura',   size: 'A5',     cover: 'Tapa Dura',   wide: false },
+                  { value: 'A4 Tapa Dura Anillado',     size: 'A4', cover: 'Tapa Dura Anillado',     wide: false },
+                  { value: 'A5 Tapa Dura Anillado',     size: 'A5', cover: 'Tapa Dura Anillado',     wide: false },
+                  { value: 'A4 Tapa Dura Encuadernado', size: 'A4', cover: 'Tapa Dura Encuadernado', wide: false },
                   { value: 'A4 Tapa Blanda', size: 'A4',     cover: 'Tapa Blanda', wide: false },
                   { value: 'A5 Tapa Blanda', size: 'A5',     cover: 'Tapa Blanda', wide: false },
                   { value: 'Cuadro 30x40',   size: 'Cuadro', cover: '30x40',       wide: true  },
