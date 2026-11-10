@@ -1061,7 +1061,7 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
                               const img = e.currentTarget;
                               if (img.dataset.tried !== '1' && photo.url) {
                                 img.dataset.tried = '1';
-                                img.src = `/_next/image?url=${encodeURIComponent(photo.url)}&w=400&q=80`;
+                                img.src = `/_next/image?url=${encodeURIComponent(photo.url)}&w=640&q=80`;
                               } else {
                                 img.parentElement?.setAttribute('data-broken', '');
                               }
@@ -1107,7 +1107,7 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
                             const img = e.currentTarget;
                             if (img.dataset.tried !== '1' && photo.url) {
                               img.dataset.tried = '1';
-                              img.src = `/_next/image?url=${encodeURIComponent(photo.url)}&w=400&q=80`;
+                              img.src = `/_next/image?url=${encodeURIComponent(photo.url)}&w=640&q=80`;
                             } else {
                               img.parentElement?.setAttribute('data-broken', '');
                             }
