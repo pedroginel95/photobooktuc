@@ -825,7 +825,7 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
                       El original full-res sigue en photo.url para descarga/impresión. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={photo.thumbUrl || photo.url}
+                    src={photo.thumbUrl || (photo.url ? `/api/convert?url=${encodeURIComponent(photo.url)}` : '')}
                     alt={photo.filename}
                     className={styles.image}
                     loading="lazy"
@@ -833,24 +833,18 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
                     onLoad={(e) => { e.currentTarget.parentElement?.setAttribute('data-loaded', ''); }}
                     onError={(e) => {
                       const img = e.currentTarget;
-                      const tried = img.dataset.tried ?? '0';
-                      console.log('[photo-error] tried=' + tried, photo.url);
-                      if (tried === '0' && photo.url) {
+                      if (img.dataset.tried !== '1' && photo.url) {
                         img.dataset.tried = '1';
-                        img.src = `/api/convert?url=${encodeURIComponent(photo.url)}`;
-                      } else if (tried === '1' && photo.url) {
-                        img.dataset.tried = '2';
                         import('heic2any').then((mod) => {
                           const convert = mod.default as (o: { blob: Blob; toType: string; quality: number }) => Promise<Blob | Blob[]>;
-                          return fetch(photo.url)
+                          return fetch(`/api/proxy?url=${encodeURIComponent(photo.url)}`)
                             .then((r) => r.blob())
                             .then((blob) => convert({ blob, toType: 'image/jpeg', quality: 0.8 }))
                             .then((out) => {
                               img.src = URL.createObjectURL(Array.isArray(out) ? out[0] : out);
                               img.onload = () => img.parentElement?.setAttribute('data-loaded', '');
                             });
-                        }).catch((err) => {
-                          console.error('[heic2any-error]', err);
+                        }).catch(() => {
                           img.parentElement?.setAttribute('data-broken', '');
                         });
                       } else {
