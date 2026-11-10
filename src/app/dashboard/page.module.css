@@ -161,7 +161,33 @@
   overflow: hidden;
   border: 1px solid var(--border);
   position: relative;
-  background-color: var(--background);
+  background-color: var(--border);
+}
+
+@keyframes imgShimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+.imageWrapper::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    var(--surface) 25%,
+    var(--background) 50%,
+    var(--surface) 75%
+  );
+  background-size: 200% 100%;
+  animation: imgShimmer 1.4s infinite linear;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.imageWrapper[data-loaded]::before,
+.imageWrapper[data-broken]::before {
+  display: none;
 }
 
 .image {
@@ -169,10 +195,37 @@
   height: 100%;
   object-fit: cover;
   transition: transform 0.3s;
+  position: relative;
+  z-index: 1;
 }
 
 .imageWrapper:hover .image {
   transform: scale(1.05);
+}
+
+/* Placeholder visible cuando la imagen no carga */
+.imageBrokenBadge {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+  pointer-events: none;
+  background-color: var(--surface);
+}
+
+.imageWrapper[data-broken] .imageBrokenBadge {
+  display: flex;
+}
+
+.imageWrapper[data-broken] .image {
+  opacity: 0;
 }
 
 .emptyGallery {

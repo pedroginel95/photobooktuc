@@ -824,7 +824,27 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
                   {/* Preview liviano: usa la miniatura; si no hay (fotos viejas), cae al original.
                       El original full-res sigue en photo.url para descarga/impresión. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={photo.thumbUrl || photo.url} alt={photo.filename} className={styles.image} loading="lazy" decoding="async" />
+                  <img
+                    src={photo.thumbUrl || photo.url}
+                    alt={photo.filename}
+                    className={styles.image}
+                    loading="lazy"
+                    decoding="async"
+                    onLoad={(e) => { e.currentTarget.parentElement?.setAttribute('data-loaded', ''); }}
+                    onError={(e) => {
+                      const img = e.currentTarget;
+                      if (img.dataset.tried !== '1' && photo.thumbUrl && photo.url && img.src !== photo.url) {
+                        img.dataset.tried = '1';
+                        img.src = photo.url;
+                      } else {
+                        img.parentElement?.setAttribute('data-broken', '');
+                      }
+                    }}
+                  />
+                  <div className={styles.imageBrokenBadge}>
+                    <ImageIcon size={22} />
+                    <span>No disponible</span>
+                  </div>
 
                   {/* Overlay modo seleccionar */}
                   {selectMode && (

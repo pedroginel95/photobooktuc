@@ -1050,8 +1050,28 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
                           style={{ cursor: 'grab', border: '2px solid var(--primary)', opacity: dragIdx === idx ? 0.4 : 1, touchAction: 'none', position: 'relative' }}
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={photo.thumbUrl || photo.url} alt={photo.filename} className={styles.image} loading="lazy" decoding="async" />
-                          <span style={{ position: 'absolute', top: '0.4rem', left: '0.4rem', backgroundColor: 'rgba(0,0,0,0.6)', color: 'white', fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.45rem', borderRadius: '999px', backdropFilter: 'blur(2px)' }}>
+                          <img
+                            src={photo.thumbUrl || photo.url}
+                            alt={photo.filename}
+                            className={styles.image}
+                            loading="lazy"
+                            decoding="async"
+                            onLoad={(e) => { e.currentTarget.parentElement?.setAttribute('data-loaded', ''); }}
+                            onError={(e) => {
+                              const img = e.currentTarget;
+                              if (img.dataset.tried !== '1' && photo.thumbUrl && photo.url && img.src !== photo.url) {
+                                img.dataset.tried = '1';
+                                img.src = photo.url;
+                              } else {
+                                img.parentElement?.setAttribute('data-broken', '');
+                              }
+                            }}
+                          />
+                          <div className={styles.imageBrokenBadge}>
+                            <ImageIcon size={20} />
+                            <span>No disponible</span>
+                          </div>
+                          <span style={{ position: 'absolute', top: '0.4rem', left: '0.4rem', backgroundColor: 'rgba(0,0,0,0.6)', color: 'white', fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.45rem', borderRadius: '999px', backdropFilter: 'blur(2px)', zIndex: 3 }}>
                             {String(idx + 1).padStart(String(draftPhotos.length).length, '0')}
                           </span>
                           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.3rem 0.4rem', background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(2px)', gap: '0.2rem' }}>
@@ -1076,7 +1096,27 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
                         title="Click para ver completa"
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={photo.thumbUrl || photo.url} alt={photo.filename} className={styles.image} loading="lazy" decoding="async" />
+                        <img
+                          src={photo.thumbUrl || photo.url}
+                          alt={photo.filename}
+                          className={styles.image}
+                          loading="lazy"
+                          decoding="async"
+                          onLoad={(e) => { e.currentTarget.parentElement?.setAttribute('data-loaded', ''); }}
+                          onError={(e) => {
+                            const img = e.currentTarget;
+                            if (img.dataset.tried !== '1' && photo.thumbUrl && photo.url && img.src !== photo.url) {
+                              img.dataset.tried = '1';
+                              img.src = photo.url;
+                            } else {
+                              img.parentElement?.setAttribute('data-broken', '');
+                            }
+                          }}
+                        />
+                        <div className={styles.imageBrokenBadge}>
+                          <ImageIcon size={20} />
+                          <span>No disponible</span>
+                        </div>
                         <span style={{
                           position: 'absolute',
                           top: '0.4rem',
@@ -1088,6 +1128,7 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
                           padding: '0.15rem 0.45rem',
                           borderRadius: '999px',
                           backdropFilter: 'blur(2px)',
+                          zIndex: 3,
                         }}>
                           {String(idx + 1).padStart(String(col.photos.length).length, '0')}
                         </span>
