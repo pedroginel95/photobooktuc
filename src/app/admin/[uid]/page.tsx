@@ -1059,9 +1059,9 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
                             onLoad={(e) => { e.currentTarget.parentElement?.setAttribute('data-loaded', ''); }}
                             onError={(e) => {
                               const img = e.currentTarget;
-                              if (img.dataset.tried !== '1' && photo.thumbUrl && photo.url && img.src !== photo.url) {
+                              if (img.dataset.tried !== '1' && photo.url) {
                                 img.dataset.tried = '1';
-                                img.src = photo.url;
+                                img.src = `/api/proxy?url=${encodeURIComponent(photo.url)}`;
                               } else {
                                 img.parentElement?.setAttribute('data-broken', '');
                               }
@@ -1105,9 +1105,9 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
                           onLoad={(e) => { e.currentTarget.parentElement?.setAttribute('data-loaded', ''); }}
                           onError={(e) => {
                             const img = e.currentTarget;
-                            if (img.dataset.tried !== '1' && photo.thumbUrl && photo.url && img.src !== photo.url) {
+                            if (img.dataset.tried !== '1' && photo.url) {
                               img.dataset.tried = '1';
-                              img.src = photo.url;
+                              img.src = `/api/proxy?url=${encodeURIComponent(photo.url)}`;
                             } else {
                               img.parentElement?.setAttribute('data-broken', '');
                             }

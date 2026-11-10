@@ -833,9 +833,9 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
                     onLoad={(e) => { e.currentTarget.parentElement?.setAttribute('data-loaded', ''); }}
                     onError={(e) => {
                       const img = e.currentTarget;
-                      if (img.dataset.tried !== '1' && photo.thumbUrl && photo.url && img.src !== photo.url) {
+                      if (img.dataset.tried !== '1' && photo.url) {
                         img.dataset.tried = '1';
-                        img.src = photo.url;
+                        img.src = `/api/proxy?url=${encodeURIComponent(photo.url)}`;
                       } else {
                         img.parentElement?.setAttribute('data-broken', '');
                       }
