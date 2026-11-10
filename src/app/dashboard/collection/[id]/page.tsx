@@ -831,24 +831,28 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
                     loading="lazy"
                     decoding="async"
                     onLoad={(e) => { e.currentTarget.parentElement?.setAttribute('data-loaded', ''); }}
-                    onError={async (e) => {
+                    onError={(e) => {
                       const img = e.currentTarget;
                       const tried = img.dataset.tried ?? '0';
+                      console.log('[photo-error] tried=' + tried, photo.url);
                       if (tried === '0' && photo.url) {
                         img.dataset.tried = '1';
                         img.src = `/api/convert?url=${encodeURIComponent(photo.url)}`;
                       } else if (tried === '1' && photo.url) {
                         img.dataset.tried = '2';
-                        try {
-                          const heic2any = (await import('heic2any')).default;
-                          const res = await fetch(photo.url);
-                          const blob = await res.blob();
-                          const out = await heic2any({ blob, toType: 'image/jpeg', quality: 0.8 });
-                          img.src = URL.createObjectURL(Array.isArray(out) ? out[0] : out);
-                          img.onload = () => img.parentElement?.setAttribute('data-loaded', '');
-                        } catch {
+                        import('heic2any').then((mod) => {
+                          const convert = mod.default as (o: { blob: Blob; toType: string; quality: number }) => Promise<Blob | Blob[]>;
+                          return fetch(photo.url)
+                            .then((r) => r.blob())
+                            .then((blob) => convert({ blob, toType: 'image/jpeg', quality: 0.8 }))
+                            .then((out) => {
+                              img.src = URL.createObjectURL(Array.isArray(out) ? out[0] : out);
+                              img.onload = () => img.parentElement?.setAttribute('data-loaded', '');
+                            });
+                        }).catch((err) => {
+                          console.error('[heic2any-error]', err);
                           img.parentElement?.setAttribute('data-broken', '');
-                        }
+                        });
                       } else {
                         img.parentElement?.setAttribute('data-broken', '');
                       }
