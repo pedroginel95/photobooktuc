@@ -24,28 +24,59 @@ interface PrintJob {
 type JobStatus = 'pending' | 'done' | 'paid';
 
 // ── Costos (mismo modelo que en el panel admin) ──
-const COVER_COST: Record<string, number> = {
+// Corte de precios: desde el 11/11/2026 00:00 ART (UTC-3) = 03:00 UTC se usan precios V2.
+const PRICE_V2_SECS = Date.UTC(2026, 10, 11, 3, 0, 0) / 1000;
+
+const COVER_COST_V1: Record<string, number> = {
   'A4 Tapa Blanda': 6500,
   'A5 Tapa Blanda': 4500,
   'A4 Tapa Dura Anillado': 8500,
   'A5 Tapa Dura Anillado': 5000,
   'A4 Tapa Dura Encuadernado': 18500,
-  // Nombres viejos (antes del rename a "Anillado")
   'A4 Tapa Dura': 8500,
   'A5 Tapa Dura': 5000,
 };
-const pageRate = (type: string) => (type.includes('A4') ? 500 : type.includes('A5') ? 300 : 0);
+const pageRateV1 = (type: string) => (type.includes('A4') ? 500 : type.includes('A5') ? 300 : 0);
+
+const COVER_COST_V2: Record<string, number> = {
+  'A5 Tapa Blanda': 5500,
+  'A4 Tapa Blanda': 8000,
+  'A5 Tapa Dura Anillado': 6500,
+  'A4 Tapa Dura Anillado': 10500,
+  'A5 Tapa Dura Encuadernado': 15000,
+  'A4 Tapa Dura Encuadernado': 22000,
+  'A3 Tapa Dura Encuadernado': 32000,
+  'A4 Tapa Dura': 10500,
+  'A5 Tapa Dura': 6500,
+};
+const pageRateV2 = (type: string) => {
+  if (type.startsWith('A3+')) return 1700;
+  if (type.includes('A3')) return 1200;
+  if (type.includes('A4')) return 600;
+  if (type.includes('A5')) return 350;
+  return 0;
+};
+
 const COVER_PAGES = 2;
 const CUADRO_COST = 1500;
 
 function costBreakdown(job: PrintJob): { tapa: number; pages: number; total: number; kind: 'book' | 'cuadro' | 'other' } {
-  const cover = COVER_COST[job.photobookType];
+  const v2 = (job.createdAt?.seconds ?? 0) >= PRICE_V2_SECS;
+  const coverTable = v2 ? COVER_COST_V2 : COVER_COST_V1;
+  const pRate = v2 ? pageRateV2 : pageRateV1;
+
+  const cover = coverTable[job.photobookType];
   if (cover !== undefined) {
     const printable = Math.max(0, Math.round(job.pages || 0) - COVER_PAGES);
-    const pagesCost = printable * pageRate(job.photobookType);
+    const pagesCost = printable * pRate(job.photobookType);
     return { tapa: cover, pages: pagesCost, total: cover + pagesCost, kind: 'book' };
   }
   if (job.photobookType === 'Cuadro 30x40') return { tapa: 0, pages: 0, total: CUADRO_COST, kind: 'cuadro' };
+  if (v2 && job.photobookType === 'A3+ Ilustración 300') {
+    const sheets = Math.max(0, Math.round(job.pages || 0));
+    const pagesCost = sheets * 1700;
+    return { tapa: 0, pages: pagesCost, total: pagesCost, kind: 'book' };
+  }
   return { tapa: 0, pages: 0, total: 0, kind: 'other' };
 }
 function jobTotal(job: PrintJob): number {
