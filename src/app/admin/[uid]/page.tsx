@@ -1051,7 +1051,7 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
-                            src={photo.thumbUrl || (photo.url ? `/api/convert?url=${encodeURIComponent(photo.url)}` : '')}
+                            src={photo.thumbUrl || photo.url}
                             alt={photo.filename}
                             className={styles.image}
                             loading="lazy"
@@ -1108,7 +1108,7 @@ export default function ClientDetail({ params }: { params: Promise<{ uid: string
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                          src={photo.thumbUrl || (photo.url ? `/api/convert?url=${encodeURIComponent(photo.url)}` : '')}
+                          src={photo.thumbUrl || photo.url}
                           alt={photo.filename}
                           className={styles.image}
                           loading="lazy"

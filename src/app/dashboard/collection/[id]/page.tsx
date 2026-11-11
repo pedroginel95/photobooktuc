@@ -825,7 +825,7 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
                       El original full-res sigue en photo.url para descarga/impresión. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={photo.thumbUrl || (photo.url ? `/api/convert?url=${encodeURIComponent(photo.url)}` : '')}
+                    src={photo.thumbUrl || photo.url}
                     alt={photo.filename}
                     className={styles.image}
                     loading="lazy"
