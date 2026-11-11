@@ -64,7 +64,6 @@ const PHOTOBOOK_TYPES = [
   'A4 Tapa Blanda',
   'A5 Tapa Blanda',
   'Cuadro 30x40',
-  'A3+ Ilustración 300',
 ];
 
 // Valor centinela para "trabajo manual": habilita un campo de texto libre.
